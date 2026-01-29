@@ -43,7 +43,7 @@ env/
 .env
 
 # Logs
-logs/
+logs/*
 *.log
 
 # Database
@@ -71,4 +71,4 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-data/
+data/*
