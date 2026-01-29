@@ -50,6 +50,45 @@ app.add_middleware(
     allow_headers=["*"],  # 允许所有请求头
 )
 
+# 添加请求日志中间件
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import time
+    from fastapi.responses import Response
+    
+    # 记录请求开始时间
+    start_time = time.time()
+    
+    # 提取请求信息
+    client_ip = request.client.host if request.client else "unknown"
+    method = request.method
+    path = request.url.path
+    query_params = dict(request.query_params)
+    
+    # 调用下一个中间件或路由处理函数
+    response = await call_next(request)
+    
+    # 记录响应信息
+    status_code = response.status_code
+    process_time = time.time() - start_time
+    
+    # 构建日志消息
+    log_message = f"API访问日志 | {client_ip} | {method} {path} | {status_code} | {process_time:.3f}s"
+    
+    # 如果有查询参数，添加到日志中
+    if query_params:
+        log_message += f" | 查询参数: {query_params}"
+    
+    # 根据状态码选择日志级别
+    if status_code >= 500:
+        logger.error(log_message)
+    elif status_code >= 400:
+        logger.warning(log_message)
+    else:
+        logger.info(log_message)
+    
+    return response
+
 # 注册 API 路由
 app.include_router(auth.router)
 app.include_router(users.router)

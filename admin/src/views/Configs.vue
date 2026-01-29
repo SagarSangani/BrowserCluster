@@ -7,6 +7,9 @@
         <p class="header-subtitle">管理系统运行参数及默认抓取设置</p>
       </div>
       <div class="header-actions">
+        <el-button type="info" size="large" @click="handleViewSystemLogs" class="action-btn">
+          <el-icon><Document /></el-icon> 系统日志
+        </el-button>
         <el-button type="danger" size="large" @click="handleRestart" :loading="restarting" class="action-btn">
           <el-icon><Cpu /></el-icon> 强制重启
         </el-button>
@@ -190,6 +193,24 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 系统日志抽屉 -->
+    <el-drawer
+      v-model="logDrawerVisible"
+      title="系统主日志"
+      size="50%"
+      @closed="stopLogStream"
+      class="log-drawer"
+    >
+      <div class="log-header">
+        <el-checkbox v-model="autoScroll">自动滚动</el-checkbox>
+        <el-button size="small" @click="logContent = ''">清空屏幕</el-button>
+        <el-button size="small" type="primary" @click="startLogStream">重新连接</el-button>
+      </div>
+      <div class="log-container" ref="logContainer">
+        <pre class="log-content">{{ logContent || '正在加载日志...' }}</pre>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -198,7 +219,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Plus, Refresh, Delete, Setting, Timer, Search, 
-  Edit, DocumentCopy, InfoFilled, Cpu
+  Edit, DocumentCopy, InfoFilled, Cpu, Document
 } from '@element-plus/icons-vue'
 import { 
   getConfigs, 
@@ -216,6 +237,13 @@ const needsRestart = ref(false)
 const configs = ref([])
 const schema = ref([])
 const searchQuery = ref('')
+
+// 日志相关
+const logDrawerVisible = ref(false)
+const logContent = ref('')
+const autoScroll = ref(true)
+const logContainer = ref(null)
+let logAbortController = null
 
 const filteredConfigs = computed(() => {
   // 合并 schema 和现有配置
@@ -438,6 +466,81 @@ const formatDate = (date) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 }
 
+// 日志处理方法
+const handleViewSystemLogs = () => {
+  logContent.value = ''
+  logDrawerVisible.value = true
+  startLogStream()
+}
+
+const startLogStream = async () => {
+  if (logAbortController) {
+    logAbortController.abort()
+  }
+  
+  logAbortController = new AbortController()
+  
+  try {
+    const token = localStorage.getItem('token')
+    const headers = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    
+    const response = await fetch(`/api/v1/configs/logs?stream=true&lines=100`, {
+      headers,
+      signal: logAbortController.signal
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      logContent.value = `错误: ${errorData.detail || '无法获取日志'}`
+      return
+    }
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      
+      const chunk = decoder.decode(value, { stream: true })
+      logContent.value += chunk
+      
+      // 限制日志显示长度
+      if (logContent.value.length > 50000) {
+        logContent.value = logContent.value.substring(logContent.value.length - 50000)
+      }
+      
+      if (autoScroll.value) {
+        scrollToBottom()
+      }
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('Log stream aborted')
+    } else {
+      logContent.value += `\n[连接中断: ${error.message}]`
+    }
+  }
+}
+
+const stopLogStream = () => {
+  if (logAbortController) {
+    logAbortController.abort()
+    logAbortController = null
+  }
+}
+
+const scrollToBottom = () => {
+  setTimeout(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight
+    }
+  }, 100)
+}
+
 onMounted(() => {
   loadConfigs()
 })
@@ -497,6 +600,38 @@ onMounted(() => {
 /* 搜索过滤 */
 .filter-section {
   margin-bottom: 20px;
+}
+
+/* 日志抽屉样式 */
+.log-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.log-container {
+  height: calc(100% - 45px);
+  background-color: #0f172a;
+  color: #e2e8f0;
+  padding: 15px;
+  overflow-y: auto;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+}
+
+.log-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+:deep(.log-drawer .el-drawer__body) {
+  padding: 0;
+  overflow: hidden;
 }
 
 .search-input {

@@ -6,7 +6,7 @@
 import os
 import logging
 import threading
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 from app.core.config import settings
 
 # 用于存储每个线程的节点 ID
@@ -53,17 +53,18 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    # 主应用文件处理器（支持自动轮转）
+    # 主应用文件处理器（支持按天轮转，保留7天）
     try:
-        file_handler = RotatingFileHandler(
+        file_handler = TimedRotatingFileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5,
+            when="D",
+            interval=1,
+            backupCount=7,
             encoding="utf-8"
         )
         file_handler.setFormatter(formatter)
-        # 主日志文件记录所有非节点特定的日志，或者记录所有日志？
-        # 通常主日志记录所有日志比较好，节点日志只记录该节点的日志。
+        # 设置轮转后的文件名后缀，例如 app.log.2026-01-29
+        file_handler.suffix = "%Y-%m-%d"
         root_logger.addHandler(file_handler)
     except Exception as e:
         print(f"Failed to set up file logging: {e}")
@@ -103,16 +104,18 @@ def setup_node_logger(node_id: str):
         if h.get_name() == handler_name:
             return
             
-    # 创建文件处理器
+    # 创建文件处理器（按天轮转，保留7天）
     try:
-        file_handler = RotatingFileHandler(
+        file_handler = TimedRotatingFileHandler(
             log_file,
-            maxBytes=5 * 1024 * 1024,  # 节点日志 5MB
-            backupCount=3,
+            when="D",
+            interval=1,
+            backupCount=7,
             encoding="utf-8"
         )
         file_handler.setFormatter(formatter)
         file_handler.set_name(handler_name)
+        file_handler.suffix = "%Y-%m-%d"
         
         # 添加过滤器，只记录当前线程（即该节点）产生的日志
         node_filter = NodeFilter(node_id)

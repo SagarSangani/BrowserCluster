@@ -3,7 +3,8 @@
 
 提供系统配置的增删改查功能
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
+from fastapi.responses import StreamingResponse
 import time
 import sys
 import os
@@ -19,6 +20,60 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/configs", tags=["Configs"])
+
+
+@router.get("/logs")
+async def get_system_logs(
+    lines: int = Query(100, ge=1, le=1000),
+    stream: bool = Query(False),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """
+    获取系统主日志
+    
+    Args:
+        lines: 返回最后多少行日志
+        stream: 是否实时流式输出
+    """
+    log_file = settings.log_file
+    
+    if not os.path.exists(log_file):
+        return StreamingResponse(iter(["Waiting for system logs..."]), media_type="text/plain")
+
+    def read_last_lines(file_path, n):
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                all_lines = f.readlines()
+                return all_lines[-n:]
+        except Exception as e:
+            return [f"Error reading log file: {str(e)}"]
+
+    if not stream:
+        content = "".join(read_last_lines(log_file, lines))
+        return StreamingResponse(iter([content]), media_type="text/plain")
+
+    # 流式输出实现 (类似 tail -f)
+    async def log_generator():
+        # 先发送最后 N 行
+        last_lines = read_last_lines(log_file, lines)
+        for line in last_lines:
+            yield line
+            
+        # 持续监听新内容
+        try:
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                # 移动到文件末尾
+                f.seek(0, os.SEEK_END)
+                while True:
+                    line = f.readline()
+                    if not line:
+                        await asyncio.sleep(0.5)
+                        continue
+                    yield line
+        except Exception as e:
+            yield f"\n[Log Stream Error: {str(e)}]"
+
+    return StreamingResponse(log_generator(), media_type="text/plain")
 
 
 @router.get("/schema")
