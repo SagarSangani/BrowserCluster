@@ -75,7 +75,8 @@ RUN mkdir -p logs
 # Expose port
 EXPOSE 8000
 
-
-
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 启动时依次执行：数据库初始化、配置初始化、账号初始化，最后启动应用
+CMD python scripts/init_db.py && \
+    python scripts/init_configs_db.py && \
+    python scripts/init_admin.py && \
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
