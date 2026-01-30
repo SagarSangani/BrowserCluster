@@ -399,12 +399,12 @@
                 style="width: 100%"
               />
             </el-form-item>
-            <div class="form-tip">输入模式并回车即可添加多条规则</div>
+            
 
             <el-form-item>
               <template #label>
                 <div class="label-with-tip">
-                  <span>Cookies (可选)</span>
+                  <div class="form-tip">支持标准的 Cookie 文本或 JSON 数组，系统将自动解析</div>
                   <el-tooltip content="支持字符串 (name=value; name2=value2) 或 JSON 数组" placement="top">
                     <el-icon class="help-icon"><QuestionFilled /></el-icon>
                   </el-tooltip>
@@ -414,7 +414,7 @@
                 v-model="scrapeForm.params.cookies"
                 type="textarea"
                 :rows="3"
-                placeholder='name1=value1; name2=value2 或 [{"name": "n1", "value": "v1"}]'
+                placeholder='例如: name1=value1; name2=value2 或 [{"name": "n1", "value": "v1"}]'
               />
             </el-form-item>
           </el-card>
