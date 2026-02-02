@@ -65,7 +65,7 @@ RUN playwright install chromium
 COPY app/ ./app/
 COPY scripts/ ./scripts/
 COPY data/ ./data/
-COPY .env.example .
+COPY .env .
 
 # Copy Frontend Build Artifacts
 COPY --from=frontend-builder /app/admin/dist ./static
@@ -80,8 +80,7 @@ EXPOSE 8000
 # 1. 如果 .env 不存在，则从 .env.example 复制
 # 2. 数据库初始化、配置初始化、账号初始化
 # 3. 启动应用
-CMD [ -f .env ] || cp .env.example .env && \
-    python scripts/init_db.py && \
+CMD python scripts/init_db.py && \
     python scripts/init_configs_db.py && \
     python scripts/init_admin.py && \
     uvicorn app.main:app --host 0.0.0.0 --port 8000
