@@ -102,10 +102,16 @@ class Worker:
 
                 # 如果启用缓存，则保存结果到缓存
                 if task_data.get("cache", {}).get("enabled"):
+                    # 构造缓存数据，包含状态和结果，与数据库结构保持一致
+                    cache_data = {
+                        "status": "success",
+                        "result": result,
+                        "completed_at": datetime.now().isoformat()
+                    }
                     await cache_service.set(
                         url,
                         params,
-                        result,
+                        cache_data,
                         task_data["cache"].get("ttl"),
                         task_id=task_id
                     )

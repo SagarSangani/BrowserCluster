@@ -48,6 +48,14 @@ async def scrape(request: ScrapeRequest, current_user: dict = Depends(get_curren
     if request.cache.enabled:
         cached = await cache_service.get(url, params)
         if cached:
+            # 处理缓存数据结构：老版本缓存可能直接存储 result，新版本可能包含 status 和 result 包装
+            result_data = cached.get("result") if "result" in cached else cached
+            
+            # 处理完成时间：优先使用包装层的时间，否则尝试从 metadata 中获取
+            completed_at = cached.get("completed_at")
+            if not completed_at and isinstance(result_data, dict):
+                completed_at = result_data.get("metadata", {}).get("timestamp")
+            
             # 即便是缓存命中，我们也记录一条任务记录到数据库，方便用户在列表中看到
             task_data = {
                 "task_id": task_id,
@@ -55,12 +63,12 @@ async def scrape(request: ScrapeRequest, current_user: dict = Depends(get_curren
                 "status": cached.get("status", "success"),
                 "priority": request.priority,
                 "params": params,
-                "result": cached.get("result"),
+                "result": result_data,
                 "cache_key": cache_key,
                 "cached": True,
                 "created_at": datetime.now(),
                 "updated_at": datetime.now(),
-                "completed_at": cached.get("completed_at") or datetime.now()
+                "completed_at": completed_at or datetime.now()
             }
             mongo.tasks.insert_one(task_data)
 

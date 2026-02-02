@@ -35,8 +35,8 @@ async def batch_delete_tasks(request: BatchDeleteRequest, current_user: dict = D
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: str, 
-    include_html: bool = Query(False, description="是否包含 HTML 源码"),
-    include_screenshot: bool = Query(False, description="是否包含截图数据"),
+    include_html: bool = Query(True, description="是否包含 HTML 源码"),
+    include_screenshot: bool = Query(True, description="是否包含截图数据"),
     current_user: dict = Depends(get_current_user)
 ):
     """

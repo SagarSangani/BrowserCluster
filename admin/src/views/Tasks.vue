@@ -661,7 +661,7 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="截图预览" name="screenshot" v-if="currentTask.status === 'success'">
+          <el-tab-pane label="截图预览" name="screenshot" v-if="currentTask.status === 'success' && currentTask.params?.screenshot">
             <div class="screenshot-container" v-loading="!currentTask.result?.screenshot">
               <el-image 
                 v-if="currentTask.result?.screenshot"

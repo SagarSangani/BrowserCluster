@@ -194,7 +194,12 @@ docker run -d `
 
 ## 📝 任务参数说明
 
-### 1. 抓取接口 (POST /api/v1/scrape)
+> **提交格式说明**：本系统所有采集接口（同步、异步、批量）均采用 **JSON** 格式提交。请求头必须包含 `Content-Type: application/json`，参数需放置在 HTTP 请求体（Body）中。
+> 
+> - **Python (requests)**: 使用 `json={...}` 传参。
+> - **JavaScript (Axios)**: 直接传入对象 `axios.post(url, {...})`。
+
+### 1. 抓取接口 (POST /api/v1/scrape/)
 
 这是最核心的接口，支持同步抓取并返回渲染后的结果。
 
@@ -264,7 +269,7 @@ docker run -d `
 异步提交抓取任务，不等待执行结果，立即返回任务 ID。适用于耗时较长的任务或不需要即时响应的场景。
 
 #### **请求体**
-与同步抓取接口 (`/api/v1/scrape`) 完全一致。
+与同步抓取接口 (`/api/v1/scrape/`) 完全一致。
 
 #### **响应示例**
 ```json
@@ -299,6 +304,19 @@ docker run -d `
 ### 4. 任务管理接口
 
 用于查询异步/批量任务的执行状态和结果。
+
+#### 4.1 获取任务详情
+
+`GET /api/v1/tasks/{task_id}`
+
+**查询参数 (Query Parameters):**
+
+| 参数名 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `include_html` | `boolean` | `true` | 是否在结果中包含完整的 HTML 源码。数据量大时建议设置为 `false`。 |
+| `include_screenshot` | `boolean` | `true` | 是否在结果中包含截图 Base64 数据。数据量大时建议设置为 `false`。 |
+
+#### 4.2 接口列表
 
 | 接口 | 方法 | 说明 |
 | :--- | :--- | :--- |
