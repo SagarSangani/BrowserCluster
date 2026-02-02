@@ -171,14 +171,10 @@ docker build -t browser-cluster:latest .
 
 ### 3. 运行容器
 
-推荐使用 `--env-file` 传递本地配置：
-
 ```powershell
 docker run -d `
   --name browser-cluster `
   -p 8000:8000 `
-  --env-file .env `
-  -v ${PWD}/logs:/app/logs `
   browser-cluster:latest
 ```
 
