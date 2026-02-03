@@ -653,7 +653,7 @@
                     <p><strong>状态码:</strong> <el-tag :type="req.status < 400 ? 'success' : 'danger'" size="small">{{ req.status }}</el-tag></p>
                     <div class="json-box">
                       <strong>响应内容:</strong>
-                      <pre>{{ formatJSON(req.content) }}</pre>
+                      <pre>{{ formatJSON(req.body) }}</pre>
                     </div>
                   </div>
                 </el-collapse-item>

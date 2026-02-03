@@ -59,7 +59,7 @@ class ScrapedResult(BaseModel):
     html: Optional[str] = None  # 渲染后的 HTML (可选，支持字段投影优化)
     screenshot: Optional[str] = None  # 截图（base64 编码）
     metadata: Optional[TaskMetadata] = None  # 元数据
-    intercepted_apis: Optional[Dict[str, List[Dict[str, Any]]]] = None  # 拦截到的接口数据
+    intercepted_apis: Optional[Dict[str, List[Dict[str, Any]]]] = None  # 拦截到的接口数据 (键名中的 . 和 $ 已被转义为 _)
     parsed_data: Optional[Dict[str, Any]] = None  # HTML 解析后的结构化数据
 
 

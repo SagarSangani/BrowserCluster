@@ -6,12 +6,18 @@
 import time
 import base64
 import re
+import json
+import logging
 from typing import Optional, Dict, Any, List, Union
+from urllib.parse import urlparse
+
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright_stealth import Stealth
+
 from app.core.browser import browser_manager
 from app.core.config import settings
-from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 class Scraper:
@@ -39,7 +45,7 @@ class Scraper:
         context = None
         intercepted_data = {}  # 存储拦截到的接口数据
 
-        print(f"Scraping URL: {url} with params: {params}")
+        logger.info(f"Scraping URL: {url} with params: {params}")
 
         try:
             # 获取 User-Agent
@@ -130,10 +136,10 @@ class Scraper:
                                 formatted_cookies.append({**cookie_base, "domain": host})
                     
                     if formatted_cookies:
-                        print(f"Adding {len(formatted_cookies)} cookies to context with domain {main_domain}")
+                        logger.info(f"Adding {len(formatted_cookies)} cookies to context with domain {main_domain}")
                         await context.add_cookies(formatted_cookies)
                 except Exception as e:
-                    print(f"Error setting cookies: {e}")
+                    logger.error(f"Error setting cookies: {e}")
 
             page = await context.new_page()
 
@@ -304,9 +310,10 @@ class Scraper:
             Returns:
                 bool: 是否匹配
             """
-            # 将通配符 * 转换为正则表达式
-            regex_pattern = pattern.replace("*", ".*")
-            return re.match(regex_pattern, url) is not None
+            # 转义正则特殊字符，但保留 * 作为通配符
+            regex_pattern = re.escape(pattern).replace(r"\*", ".*")
+            # 使用 re.search 确保在 URL 任何位置都能匹配，或者在正则前后加 ^ $
+            return re.search(f"^{regex_pattern}$", url) is not None
 
         async def route_handler(route, request):
             """路由处理函数"""
@@ -322,45 +329,69 @@ class Scraper:
 
                 if matched_pattern:
                     # 拦截请求，获取响应
-                    response = await route.fetch()
+                    try:
+                        response = await route.fetch()
+                        
+                        # 获取响应数据
+                        content_type = response.headers.get("content-type", "")
+                        
+                        # 清理 Headers，防止 MongoDB 键名冲突（键名不能包含 . 或 $）
+                        safe_headers = {}
+                        for k, v in response.headers.items():
+                            safe_k = k.replace(".", "_").replace("$", "_")
+                            safe_headers[safe_k] = v
 
-                    # 获取响应数据
-                    content_type = response.headers.get("content-type", "")
-                    response_data = {
-                        "url": request_url,
-                        "method": request.method,
-                        "status": response.status,
-                        "headers": dict(response.headers),
-                    }
+                        response_data = {
+                            "url": request_url,
+                            "method": request.method,
+                            "status": response.status,
+                            "headers": safe_headers,
+                        }
 
-                    # 尝试解析 JSON 响应
-                    if "application/json" in content_type:
+                        # 尝试获取响应体
                         try:
-                            json_data = await response.json()
-                            response_data["body"] = json_data
-                        except:
-                            response_data["body"] = await response.text()
-                    else:
-                        # 非 JSON 响应，存储文本内容
-                        response_data["body"] = await response.text()
+                            body_bytes = await response.body()
+                            logger.info(f"Captured {len(body_bytes)} bytes for {request_url}")
+                            if "application/json" in content_type:
+                                try:
+                                    response_data["body"] = json.loads(body_bytes.decode('utf-8'))
+                                except:
+                                    response_data["body"] = body_bytes.decode('utf-8', errors='replace')
+                            elif any(t in content_type for t in ["text/", "javascript", "xml", "html"]):
+                                response_data["body"] = body_bytes.decode('utf-8', errors='replace')
+                            else:
+                                # 对于二进制数据，使用 base64 编码
+                                response_data["body"] = f"data:{content_type};base64," + base64.b64encode(body_bytes).decode('utf-8')
+                                response_data["is_binary"] = True
+                        except Exception as body_err:
+                            response_data["body"] = f"Error capturing body: {str(body_err)}"
 
-                    # 存储拦截数据
-                    if matched_pattern not in intercepted_data:
-                        intercepted_data[matched_pattern] = []
-                    intercepted_data[matched_pattern].append(response_data)
+                        # 存储拦截数据
+                        # MongoDB 不允许键名中包含 "." 或 "$" 符号
+                        # 我们对 pattern 进行转义处理，将 "." 替换为 "_"
+                        safe_pattern = matched_pattern.replace(".", "_").replace("$", "_")
+                        
+                        if safe_pattern not in intercepted_data:
+                            intercepted_data[safe_pattern] = []
+                        intercepted_data[safe_pattern].append(response_data)
+                        logger.info(f"Stored intercepted data for {safe_pattern}, body length: {len(str(response_data.get('body', '')))}")
 
-                    # 判断是否继续请求
-                    if continue_after_intercept:
-                        await route.continue_()
-                    else:
-                        # 不执行后续请求，直接中止（或可以使用 route.fulfill 返回已获取的数据，但 abort 更符合“不执行后续”的描述）
-                        await route.abort()
+                        # 判断是否继续请求
+                        if continue_after_intercept:
+                            # 如果已经 fetch 了响应，必须用 fulfill 返回给页面，否则继续请求会导致重复发送
+                            await route.fulfill(response=response)
+                        else:
+                            await route.abort()
+                    except Exception as fetch_err:
+                        logger.error(f"Error fetching route: {fetch_err}")
+                        await route.fallback()
                 else:
-                    # 不匹配，正常请求
-                    await route.continue_()
+                    # 不匹配，交给下一个处理器或正常请求
+                    await route.fallback()
             except Exception as e:
-                # 拦截失败时继续请求
-                await route.continue_()
+                # 拦截失败时尝试交给下一个处理器
+                logger.error(f"Interception handler error: {e}")
+                await route.fallback()
 
         # 注册路由处理器
         await page.route("**/*", route_handler)
@@ -383,9 +414,9 @@ class Scraper:
             # 拦截媒体资源和字体、css
             elif params.get("block_media") and resource_type in ["media", "font", "stylesheet"]:
                 await route.abort()
-            # 继续加载其他资源
+            # 继续加载其他资源，允许其他路由处理器继续处理
             else:
-                await route.continue_()
+                await route.fallback()
 
         # 注册路由处理器
         await page.route("**/*", route_handler)
