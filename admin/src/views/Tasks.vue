@@ -1236,8 +1236,12 @@ const submitTask = async () => {
 
     if (submitMode.value === 'single') {
       const submitData = processParams(baseConfig)
-      await scrapeAsync(submitData)
-      ElMessage.success('任务提交成功 (异步)')
+      scrapeAsync(submitData).then(() => {
+        ElMessage.success('任务提交成功 (异步)')
+        loadTasks()
+      }).catch(error => {
+        ElMessage.error('提交失败: ' + (error.response?.data?.detail || error.message))
+      })
     } else {
       // 批量处理
       const urls = batchMode.value === 'text' 
@@ -1252,15 +1256,18 @@ const submitTask = async () => {
         })
       }
       
-      await scrapeBatch(batchData)
-      ElMessage.success(`成功提交 ${urls.length} 个批量任务`)
+      scrapeBatch(batchData).then(() => {
+        ElMessage.success(`成功提交 ${urls.length} 个批量任务`)
+        loadTasks()
+      }).catch(error => {
+        ElMessage.error('提交失败: ' + (error.response?.data?.detail || error.message))
+      })
     }
 
     showScrapeDialog.value = false
-    loadTasks()
     resetForm()
   } catch (error) {
-    ElMessage.error('提交失败: ' + (error.response?.data?.detail || error.message))
+    ElMessage.error('提交准备失败: ' + error.message)
   } finally {
     loading.value = false
   }

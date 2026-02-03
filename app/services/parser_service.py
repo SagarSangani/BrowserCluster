@@ -6,7 +6,12 @@ HTML 解析服务模块
 import json
 import logging
 from typing import Dict, Any, Optional, List
-from gne import GeneralNewsExtractor
+try:
+    from gne import GeneralNewsExtractor
+    GNE_AVAILABLE = True
+except ImportError:
+    GeneralNewsExtractor = None
+    GNE_AVAILABLE = False
 from openai import AsyncOpenAI
 from lxml import html as lxml_html
 from app.core.config import settings
@@ -18,7 +23,7 @@ class ParserService:
     """HTML 解析服务"""
 
     def __init__(self):
-        self.gne_extractor = GeneralNewsExtractor()
+        self.gne_extractor = GeneralNewsExtractor() if GNE_AVAILABLE else None
         self.llm_client = None
         self._current_llm_config = {}
 
@@ -70,6 +75,9 @@ class ParserService:
 
     def _parse_with_gne(self, html: str) -> Dict[str, Any]:
         """使用 GNE 解析网页"""
+        if not GNE_AVAILABLE:
+            logger.warning("GNE is not installed, skipping GNE extraction")
+            return {"error": "GNE is not installed on this node. Please install it or use XPath/LLM parser."}
         try:
             result = self.gne_extractor.extract(html)
             return result
