@@ -139,14 +139,22 @@
    uvicorn app.main:app --reload
    ```
 
-5. **前端设置**
+5. **Worker 启动**
+   Worker 负责从消息队列接收并执行实际的网页抓取任务：
+   ```bash
+   # 启动 Worker 进程
+   python scripts/start_worker.py
+   ```
+   或者在后台管理界面-节点管理内添加并启动worker
+
+6. **前端设置**
    ```bash
    cd admin
    npm install
    npm run build  # 构建后由后端统一托管，或运行 npm run dev 进行开发
    ```
 
-6. **访问系统**
+7. **访问系统**
    - 管理后台：`http://localhost:8000` (后端托管) 或 `http://localhost:5173` (Vite 开发模式)
    - API 文档：`http://localhost:8000/docs`
 
@@ -173,6 +181,7 @@ docker build -t browser-cluster:latest .
 
 ### 3. 运行容器
 
+#### 启动 API 服务 (含管理后台)
 ```powershell
 docker run -d `
   --name browser-cluster `
@@ -183,6 +192,7 @@ docker run -d `
 > **注意**：
 > 1. 请确保 `.env` 中的 `MONGO_URI`、`REDIS_URL` 等地址对容器可见（如使用宿主机 IP）。
 > 2. `${PWD}/logs` 用于持久化日志。
+> 3. 须在后台管理界面-节点管理内添加并启动worker
 
 ## ⚙️ 配置说明
 
