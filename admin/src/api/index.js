@@ -134,6 +134,42 @@ export const retryTask = async (taskId) => {
   return response.data
 }
 
+// 定时任务相关 API
+export const getSchedules = async (params) => {
+  const response = await api.get('/schedules/', { params })
+  return response.data
+}
+
+export const getSchedule = async (scheduleId) => {
+  const response = await api.get(`/schedules/${scheduleId}`)
+  return response.data
+}
+
+export const createSchedule = async (data) => {
+  const response = await api.post('/schedules/', data)
+  return response.data
+}
+
+export const updateSchedule = async (scheduleId, data) => {
+  const response = await api.put(`/schedules/${scheduleId}`, data)
+  return response.data
+}
+
+export const deleteSchedule = async (scheduleId) => {
+  const response = await api.delete(`/schedules/${scheduleId}`)
+  return response.data
+}
+
+export const toggleSchedule = async (scheduleId) => {
+  const response = await api.post(`/schedules/${scheduleId}/toggle`)
+  return response.data
+}
+
+export const runScheduleNow = async (scheduleId) => {
+  const response = await api.post(`/schedules/${scheduleId}/run`)
+  return response.data
+}
+
 export const getStats = async () => {
   const response = await api.get('/stats/')
   return response.data

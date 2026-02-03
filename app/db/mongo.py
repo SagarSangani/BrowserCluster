@@ -101,6 +101,26 @@ class MongoDB:
         """
         return self.db.nodes
 
+    @property
+    def schedules(self):
+        """
+        获取定时任务集合
+
+        Returns:
+            Collection: schedules 集合
+        """
+        return self.db.schedules
+
+    @property
+    def users(self):
+        """
+        获取用户集合
+
+        Returns:
+            Collection: users 集合
+        """
+        return self.db.users
+
 
 # 全局 MongoDB 实例
 mongo = MongoDB()

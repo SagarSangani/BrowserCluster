@@ -118,7 +118,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="执行统计" width="220">
+        <el-table-column label="执行统计" width="150">
           <template #default="{ row }">
             <div class="stats-group">
               <div class="stat-item timing-row">
@@ -157,24 +157,24 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="时间轨迹" width="180">
+        <el-table-column label="时间轨迹" width="220">
           <template #default="{ row }">
             <div class="timeline-mini">
               <div class="time-row">
                 <span class="dot create"></span>
                 <span class="label">创建:</span>
-                <span class="time">{{ formatTimeOnly(row.created_at) }}</span>
+                <span class="time">{{ formatDate(row.created_at) }}</span>
               </div>
               <div class="time-row" v-if="row.completed_at">
                 <span class="dot complete"></span>
                 <span class="label">完成:</span>
-                <span class="time">{{ formatTimeOnly(row.completed_at) }}</span>
+                <span class="time">{{ formatDate(row.completed_at) }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="160" fixed="right" align="center">
+        <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-tooltip content="查看详情" placement="top">
@@ -1333,11 +1333,6 @@ const getStatusText = (status) => {
 const formatDate = (date) => {
   if (!date) return ''
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
-}
-
-const formatTimeOnly = (date) => {
-  if (!date) return ''
-  return dayjs(date).format('HH:mm:ss')
 }
 
 const copyToClipboard = (text) => {

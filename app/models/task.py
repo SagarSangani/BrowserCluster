@@ -42,6 +42,7 @@ class ScrapeRequest(BaseModel):
     params: ScrapeParams = Field(default_factory=ScrapeParams)  # 抓取参数
     cache: CacheConfig = Field(default_factory=CacheConfig)  # 缓存配置
     priority: int = 1  # 任务优先级（数字越大优先级越高）
+    schedule_id: Optional[str] = None  # 所属定时任务 ID (如果是定时任务触发的)
 
 
 class TaskMetadata(BaseModel):
@@ -132,3 +133,5 @@ class StatsResponse(BaseModel):
     trends: Dict[str, float]  # 趋势百分比
     queue: Dict[str, Any]  # 队列统计数据
     history: List[Dict[str, Any]]  # 历史趋势数据
+    nodes: Optional[Dict[str, Any]] = None  # 节点统计数据
+    system_load: Optional[float] = 0.0  # 系统负载 (0-100)

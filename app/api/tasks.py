@@ -83,6 +83,7 @@ async def get_task(
 async def list_tasks(
     status: str = None,
     url: str = None,
+    schedule_id: str = None,
     cached: bool = None,
     skip: int = 0,
     limit: int = 50,
@@ -105,6 +106,8 @@ async def list_tasks(
     query = {}
     if status:
         query["status"] = status
+    if schedule_id:
+        query["schedule_id"] = schedule_id
     if url:
         query["$or"] = [
             {"url": {"$regex": url, "$options": "i"}},

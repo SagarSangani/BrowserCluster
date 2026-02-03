@@ -34,3 +34,4 @@ cryptography==46.0.3
 
 # 其他工具
 motor==3.7.1
+apscheduler==3.11.0

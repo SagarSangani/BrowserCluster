@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Tasks from '../views/Tasks.vue'
+import TaskRecords from '../views/TaskRecords.vue'
+import Schedules from '../views/Schedules.vue'
 import Stats from '../views/Stats.vue'
 import Configs from '../views/Configs.vue'
 import Rules from '../views/Rules.vue'
@@ -13,6 +15,8 @@ const routes = [
   { path: '/login', component: Login, meta: { public: true } },
   { path: '/', component: Home },
   { path: '/tasks', component: Tasks },
+  { path: '/task-records', component: TaskRecords, name: 'TaskRecords' },
+  { path: '/schedules', component: Schedules },
   { path: '/stats', component: Stats },
   { path: '/configs', component: Configs, meta: { adminOnly: true } },
   { path: '/rules', component: Rules, meta: { adminOnly: true } },
