@@ -502,8 +502,14 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item label="渲染超时 (ms)">
-                    <el-input-number v-model="scrapeForm.params.timeout" :min="5000" :step="5000" style="width: 100%" />
+                  <el-form-item label="渲染超时 (s)">
+                    <el-input-number 
+                      :model-value="scrapeForm.params.timeout / 1000" 
+                      @update:model-value="val => scrapeForm.params.timeout = val * 1000"
+                      :min="5" 
+                      :step="5" 
+                      style="width: 100%" 
+                    />
                   </el-form-item>
                 </el-col>
               </el-row>
