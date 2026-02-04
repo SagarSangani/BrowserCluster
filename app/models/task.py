@@ -11,6 +11,7 @@ from pydantic import BaseModel, HttpUrl, Field
 
 class ScrapeParams(BaseModel):
     """抓取参数模型"""
+    engine: str = "playwright"  # 浏览器引擎: playwright, drissionpage
     wait_for: str = "networkidle"  # 等待策略: networkidle, load, domcontentloaded
     wait_time: int = 3000  # 额外等待时间（毫秒）
     timeout: int = 30000  # 超时时间（毫秒）

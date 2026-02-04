@@ -5,6 +5,7 @@ Worker 工作进程模块
 """
 import asyncio
 import logging
+import time
 from datetime import datetime
 from urllib.parse import urlparse
 from app.services.queue_service import rabbitmq_service
@@ -15,6 +16,7 @@ from app.core.config import settings
 from app.db.mongo import mongo
 from app.db.redis import redis_client
 from app.core.browser import browser_manager
+from app.core.drission_browser import drission_manager
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +248,11 @@ class Worker:
         logger.info(f"Browser idle check loop started for {self.node_id}")
         while self.is_running:
             try:
+                # 检查 Playwright 浏览器
                 await browser_manager.check_idle_browser()
+                
+                # 检查 DrissionPage 浏览器 (同步方法在线程中运行)
+                await asyncio.to_thread(self._check_drission_idle)
             except Exception as e:
                 logger.error(f"Error checking idle browser: {e}")
             
@@ -256,6 +262,19 @@ class Worker:
                     break
                 await asyncio.sleep(1)
         logger.info(f"Browser idle check loop stopped for {self.node_id}")
+
+    def _check_drission_idle(self):
+        """检查并清理空闲的 DrissionPage 实例"""
+        try:
+            idle_timeout = settings.browser_idle_timeout # 使用配置的超时时间
+            current_time = time.time()
+            last_used = drission_manager.last_used_time
+            
+            if last_used > 0 and (current_time - last_used) > idle_timeout:
+                logger.info(f"DrissionPage idle for {int(current_time - last_used)}s, closing...")
+                drission_manager.close_browser()
+        except Exception as e:
+            logger.error(f"Error in _check_drission_idle: {e}")
 
     async def _heartbeat_loop(self):
         """周期性更新节点心跳状态"""

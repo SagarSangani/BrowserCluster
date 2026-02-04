@@ -9,8 +9,13 @@
 
 ## 🚀 核心特性
 
+- **双浏览器引擎支持**：支持 Playwright 和 DrissionPage 双引擎切换。
+    - **Playwright**：适用于复杂的自动化交互和 API 拦截场景。
+    - **DrissionPage**：原生抗检测能力强，可轻松绕过 Cloudflare 5秒盾及各类人机验证。
 - **分布式架构**：支持多 Worker 节点水平扩展，轻松应对高并发场景。
-- **隐身模式**：内置 Stealth 插件，有效绕过反爬虫检测。
+- **隐身与反检测**：
+    - Playwright 内置 Stealth 插件。
+    - DrissionPage 采用浏览器指纹抹除技术，支持 Linux 环境深度隐藏。
 - **高效缓存**：基于 Redis 的结果缓存机制，支持自定义 TTL。
 - **资源优化**：智能拦截图片、媒体资源，显著提升渲染速度。
 - **API 拦截**：支持在渲染过程中提取特定 XHR/Fetch 接口数据。
@@ -78,9 +83,11 @@
   - 异步任务总线，实现生产者（API）与消费者（Worker）的完全解耦。
   - 支持任务持久化、优先级队列和 ACK 确认机制，确保高并发下的任务可靠性。
 
-- **🤖 Worker Nodes (Playwright)**
+- **🤖 Worker Nodes (Playwright & DrissionPage)**
   - 分布式执行单元，支持容器化部署和水平扩展。
   - 负责启动浏览器上下文，执行页面渲染、交互、截图和数据提取。
+  - **双引擎驱动**：根据任务参数动态选择 Playwright 或 DrissionPage。
+  - **单例模式优化**：浏览器实例常驻复用，通过标签页管理任务，极大降低资源开销和启动延迟。
   - 内置 **Stealth Mode** 和资源拦截策略，优化抓取成功率和速度。
 
 - **💾 Data Storage**
@@ -259,6 +266,7 @@ docker run -d `
 | `intercept_apis` | list | `[]` | 要拦截并提取数据的接口 URL 模式列表（支持正则） |
 | `intercept_continue` | bool | `false` | 拦截接口后是否继续请求（默认 False 为中止请求） |
 | `viewport` | object | `{"width": 1920, "height": 1080}` | 模拟的浏览器视口大小 |
+| `engine` | string | `playwright` | 浏览器引擎：`playwright` 或 `drissionpage` |
 | `proxy` | object | `null` | 代理服务器配置，格式：`{"server": "...", "username": "...", "password": "..."}` |
 | `cookies` | string/object/list | `null` | 注入 Cookie。支持字符串 (`name=val;`), JSON 对象 (`{name: val}`) 或 JSON 数组 (`[{name, value, ...}]`)。自动适配主域名。 |
 | `parser` | string | `null` | 解析服务类型：`gne` (通用新闻解析), `xpath` (自定义规则), `llm` (大模型解析) |

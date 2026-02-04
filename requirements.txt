@@ -10,6 +10,7 @@ python-dotenv==1.1.1
 # 浏览器自动化与抓取
 playwright==1.57.0
 playwright-stealth==2.0.1
+DrissionPage==4.1.1.2
 
 # 数据库驱动
 pymongo==4.15.5

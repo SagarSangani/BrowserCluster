@@ -3,7 +3,7 @@
 
 使用 pydantic_settings 从环境变量或 .env 文件加载配置
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -29,9 +29,10 @@ class Settings(BaseSettings):
     rabbitmq_queue: str = "scrape_tasks"  # 任务队列名称
     rabbitmq_exchange: str = "browser_cluster"  # 交换机名称
 
-    # Playwright 配置
-    browser_type: str = "chromium"  # 浏览器类型
-    headless: bool = True  # 是否无头模式
+    # 浏览器配置
+    browser_type: str = "chromium"  # chromium, firefox, webkit
+    browser_engine: str = "playwright"  # playwright, drissionpage
+    headless: bool = True  # 是否无头模式，DrissionPage 建议先 False 调试
     block_images: bool = False  # 是否拦截图片
     block_media: bool = False  # 是否拦截媒体资源
     default_timeout: int = 30000  # 默认超时时间（毫秒）
@@ -71,9 +72,11 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7天
 
-    class Config:
-        """Pydantic 配置类"""
-        env_file = ".env"  # 环境变量文件
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding='utf-8',
+        extra='ignore'
+    )
 
     def load_from_db(self):
         """从 SQLite 数据库加载动态配置"""

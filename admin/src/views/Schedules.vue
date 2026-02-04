@@ -317,6 +317,14 @@
             <div class="tab-content" v-if="form.params">
               <el-row :gutter="20">
                 <el-col :span="12">
+                  <el-form-item label="浏览器引擎">
+                    <el-select v-model="form.params.engine" style="width: 100%">
+                      <el-option label="Playwright (默认)" value="playwright" />
+                      <el-option label="DrissionPage (过盾强)" value="drissionpage" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
                   <el-form-item label="加载等待条件">
                     <el-select v-model="form.params.wait_for" style="width: 100%">
                       <el-option label="Network Idle (推荐)" value="networkidle" />
@@ -395,20 +403,33 @@
                 <el-form-item label="代理服务器" v-if="form.params.proxy">
                   <el-input v-model="form.params.proxy.server" placeholder="http://proxy.example.com:8080" clearable />
                 </el-form-item>
-                <el-collapse-transition>
-                  <el-row :gutter="20" v-if="form.params.proxy && form.params.proxy.server">
-                    <el-col :span="12">
-                      <el-form-item label="用户名">
-                        <el-input v-model="form.params.proxy.username" placeholder="可选" />
-                      </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                      <el-form-item label="密码">
-                        <el-input v-model="form.params.proxy.password" show-password placeholder="可选" />
-                      </el-form-item>
-                    </el-col>
-                  </el-row>
-                </el-collapse-transition>
+                
+                <template v-if="form.params.proxy && form.params.proxy.server">
+                  <el-collapse-transition>
+                    <el-row :gutter="20" v-if="form.params.engine !== 'drissionpage'">
+                      <el-col :span="12">
+                        <el-form-item label="用户名">
+                          <el-input v-model="form.params.proxy.username" placeholder="可选" />
+                        </el-form-item>
+                      </el-col>
+                      <el-col :span="12">
+                        <el-form-item label="密码">
+                          <el-input v-model="form.params.proxy.password" show-password placeholder="可选" />
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                  </el-collapse-transition>
+                  
+                  <el-alert
+                    v-if="form.params.engine === 'drissionpage'"
+                    title="代理说明"
+                    type="info"
+                    description="DrissionPage 引擎目前仅支持无账密代理（IP:Port 格式）。如需使用账密认证代理，请切换至 Playwright 引擎。"
+                    show-icon
+                    :closable="false"
+                    style="margin-top: 10px;"
+                  />
+                </template>
               </div>
 
               <div class="section-title mt-4">缓存策略</div>
@@ -532,6 +553,7 @@ const form = ref({
   cron: '',
   priority: 5,
   params: {
+    engine: 'playwright',
     screenshot: true,
     wait_for: 'networkidle',
     parser: '',
@@ -747,6 +769,7 @@ const openCreateDialog = () => {
     cron: '',
     priority: 5,
     params: {
+      engine: 'playwright',
       screenshot: true,
       wait_for: 'networkidle',
       parser: '',
@@ -782,6 +805,13 @@ const openCreateDialog = () => {
 const handleEdit = (row) => {
   isEdit.value = true
   form.value = JSON.parse(JSON.stringify(row))
+  
+  // 确保 engine 参数存在 (兼容旧数据)
+  if (!form.value.params) {
+    form.value.params = { engine: 'playwright' }
+  } else if (!form.value.params.engine) {
+    form.value.params.engine = 'playwright'
+  }
   
   // 处理间隔回显
   if (row.interval) {

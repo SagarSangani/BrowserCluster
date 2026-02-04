@@ -8,13 +8,16 @@ import base64
 import re
 import json
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List, Union
 from urllib.parse import urlparse
 
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright_stealth import Stealth
+from DrissionPage import ChromiumPage, ChromiumOptions
 
 from app.core.browser import browser_manager
+from app.core.drission_browser import drission_manager
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -30,22 +33,33 @@ class Scraper:
         node_id: str
     ) -> Dict[str, Any]:
         """
-        抓取网页内容
-
-        Args:
-            url: 目标 URL
-            params: 抓取参数
-            node_id: 处理节点 ID
-
-        Returns:
-            Dict: 包含状态、HTML、元数据等信息的字典
+        抓取网页内容，支持 Playwright 和 DrissionPage 引擎
         """
+        engine = params.get("engine") or settings.browser_engine
+        
+        if engine == "drissionpage":
+            # 检查代理设置，DrissionPage 目前对带账密的代理支持有限（单例模式下难以动态切换）
+            proxy_config = params.get("proxy")
+            if proxy_config and (proxy_config.get("username") or proxy_config.get("password")):
+                logger.warning("DrissionPage engine currently has limited support for authenticated proxies in singleton mode. Reverting to Playwright or proceed without authentication if it fails.")
+            
+            return await self._scrape_with_drission(url, params, node_id)
+        else:
+            return await self._scrape_with_playwright(url, params, node_id)
+
+    async def _scrape_with_playwright(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        node_id: str
+    ) -> Dict[str, Any]:
+        """使用 Playwright 抓取网页"""
         start_time = time.time()
         page = None
         context = None
         intercepted_data = {}  # 存储拦截到的接口数据
 
-        logger.info(f"Scraping URL: {url} with params: {params}")
+        logger.info(f"Scraping with Playwright: {url}")
 
         try:
             # 获取 User-Agent
@@ -282,6 +296,130 @@ class Scraper:
             elif page:
                 # 只关闭页面
                 await page.close()
+
+    async def _scrape_with_drission(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        node_id: str
+    ) -> Dict[str, Any]:
+        """使用 DrissionPage 抓取网页，通过 asyncio.to_thread 运行同步代码"""
+        return await asyncio.to_thread(self._sync_scrape_with_drission, url, params, node_id)
+
+    def _sync_scrape_with_drission(
+        self,
+        url: str,
+        params: Dict[str, Any],
+        node_id: str
+    ) -> Dict[str, Any]:
+        """DrissionPage 的同步抓取实现 (单例模式)"""
+        start_time = time.time()
+        logger.info(f"Scraping with DrissionPage (singleton): {url}")
+        
+        # 获取单例浏览器实例
+        browser = drission_manager.get_browser(params)
+        
+        # 创建新标签页
+        tab = None
+        try:
+            # 设置超时 (DrissionPage 默认 10s)
+            timeout_ms = params.get("timeout", settings.default_timeout)
+            timeout_s = timeout_ms / 1000
+
+            # 创建一个新标签页
+            tab = browser.new_tab()
+            
+            # 在新标签页中访问 URL，并设置超时
+            tab.get(url, timeout=timeout_s)
+            
+            # 处理 Cloudflare 挑战
+            # 循环检查是否还在挑战页面，最多等待 60 秒
+            wait_start = time.time()
+            max_wait = 60
+            
+            logger.info(f"Waiting for Cloudflare challenge (max {max_wait}s)...")
+            while time.time() - wait_start < max_wait:
+                html_lower = tab.html.lower()
+                title = tab.title
+                
+                # 如果标题不再是 "请稍候" 或 "checking your browser" 等，说明可能通过了
+                if "checking your browser" not in html_lower and \
+                   "just a moment" not in html_lower and \
+                   "请稍候" not in title and \
+                   "验证您是否是真人" not in title:
+                    logger.info("Cloudflare challenge seems bypassed.")
+                    break
+                
+                # 直接获取div, 点击
+                try:
+                    tab.ele("x://div[@class='main-content']/div[1]").click.at(30, 30)
+                    tab.ele("x://div[@class='main-content']/div[1]").click.at(40, 40)
+                except Exception as e:
+                    # 忽略查找过程中的小错误
+                    pass
+                    
+                time.sleep(5)
+            else:
+                logger.warning("Cloudflare challenge wait timeout.")
+            
+            # 等待特定元素 (如果指定)
+            selector = params.get("selector")
+            if selector:
+                try:
+                    tab.ele(selector, timeout=timeout_s)
+                except:
+                    logger.warning(f"Selector {selector} not found within timeout")
+            
+            # 获取内容
+            html = tab.html
+            title = tab.title
+            actual_url = tab.url
+            
+            # 截图
+            screenshot = None
+            if params.get("screenshot"):
+                try:
+                    is_fullscreen = params.get("is_fullscreen", False)
+                    screenshot_bytes = tab.get_screenshot(full_page=is_fullscreen, as_bytes=True)
+                    screenshot = base64.b64encode(screenshot_bytes).decode()
+                except Exception as e:
+                    logger.error(f"Error taking screenshot with DrissionPage: {e}")
+
+            load_time = time.time() - start_time
+            
+            return {
+                "status": "success",
+                "html": html,
+                "screenshot": screenshot,
+                "metadata": {
+                    "title": title,
+                    "url": url,
+                    "actual_url": actual_url,
+                    "status_code": 200, 
+                    "load_time": load_time,
+                    "timestamp": time.time(),
+                    "engine": "drissionpage"
+                }
+            }
+        except Exception as e:
+            logger.error(f"DrissionPage scrape failed: {e}")
+            return {
+                "status": "failed",
+                "error": {"message": str(e), "type": type(e).__name__},
+                "metadata": {
+                    "url": url,
+                    "load_time": time.time() - start_time,
+                    "timestamp": time.time(),
+                    "engine": "drissionpage"
+                }
+            }
+        finally:
+            if tab:
+                try:
+                    # 抓取完成后关闭该标签页，但不关闭整个浏览器
+                    tab.close()
+                except:
+                    pass
 
     async def _setup_api_interception(
         self,

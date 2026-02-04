@@ -493,6 +493,14 @@
             <div class="tab-content">
               <el-row :gutter="20">
                 <el-col :span="12">
+                  <el-form-item label="浏览器引擎">
+                    <el-select v-model="scrapeForm.params.engine" style="width: 100%">
+                      <el-option label="Playwright (默认)" value="playwright" />
+                      <el-option label="DrissionPage (过盾强)" value="drissionpage" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
                   <el-form-item label="加载等待条件">
                     <el-select v-model="scrapeForm.params.wait_for" style="width: 100%">
                       <el-option label="Network Idle (推荐)" value="networkidle" />
@@ -595,18 +603,31 @@
               <el-form-item label="代理服务器">
                 <el-input v-model="scrapeForm.params.proxy.server" placeholder="http://proxy.example.com:8080" clearable />
               </el-form-item>
-              <el-row :gutter="20" v-if="scrapeForm.params.proxy.server">
-                <el-col :span="12">
-                  <el-form-item label="用户名">
-                    <el-input v-model="scrapeForm.params.proxy.username" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="密码">
-                    <el-input v-model="scrapeForm.params.proxy.password" show-password />
-                  </el-form-item>
-                </el-col>
-              </el-row>
+              
+              <template v-if="scrapeForm.params.proxy.server">
+                <el-row :gutter="20" v-if="scrapeForm.params.engine !== 'drissionpage'">
+                  <el-col :span="12">
+                    <el-form-item label="用户名">
+                      <el-input v-model="scrapeForm.params.proxy.username" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="密码">
+                      <el-input v-model="scrapeForm.params.proxy.password" show-password />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                
+                <el-alert
+                  v-if="scrapeForm.params.engine === 'drissionpage'"
+                  title="代理说明"
+                  type="info"
+                  description="DrissionPage 引擎目前仅支持无账密代理（IP:Port 格式）。如需使用账密认证代理，请切换至 Playwright 引擎。"
+                  show-icon
+                  :closable="false"
+                  class="proxy-warning"
+                />
+              </template>
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -993,6 +1014,7 @@ const handleFileRemove = () => {
 const scrapeForm = ref({
   url: '',
   params: {
+    engine: 'playwright',
     wait_for: 'networkidle',
     wait_time: 3000,
     timeout: 30000,
@@ -1309,6 +1331,7 @@ const resetForm = () => {
   scrapeForm.value = {
     url: '',
     params: {
+      engine: 'playwright',
       wait_for: 'networkidle',
       wait_time: 3000,
       timeout: 30000,
