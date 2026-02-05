@@ -150,6 +150,72 @@ async def restart_system(background_tasks: BackgroundTasks, current_admin: dict 
     return {"message": "System restart initiated"}
 
 
+@router.get("/export")
+async def export_configs_env(current_admin: dict = Depends(get_current_admin)):
+    """
+    导出配置为 .env 格式文件
+    """
+    # 1. 获取所有配置
+    # 获取数据库中的配置
+    db_configs = sqlite_db.get_all_configs()
+    db_map = {c["key"]: c for c in db_configs}
+    
+    # 获取 Settings 类的 JSON Schema 以便按顺序导出并获取描述
+    schema = settings.model_json_schema()
+    properties = schema.get("properties", {})
+    
+    env_content = []
+    env_content.append(f"# Browser Cluster Configuration - Exported at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    env_content.append("# Format compatible with .env files\n")
+    
+    # 2. 遍历 schema 中的键，优先导出
+    for key in properties.keys():
+        # 获取值：优先从数据库获取，如果没有则从 settings 获取（即默认值）
+        value = None
+        description = properties[key].get("description", "")
+        
+        if key in db_map:
+            value = db_map[key]["value"]
+            # 如果数据库中有描述，使用数据库的
+            if db_map[key].get("description"):
+                description = db_map[key]["description"]
+        else:
+            value = getattr(settings, key, None)
+            
+        if value is None:
+            value = ""
+            
+        # 写入描述注释
+        if description:
+            env_content.append(f"# {description}")
+        
+        # 转换值为字符串，布尔值转为小写
+        if isinstance(value, bool):
+            val_str = str(value).lower()
+        else:
+            val_str = str(value)
+            
+        env_content.append(f"{key.upper()}={val_str}\n")
+        
+    # 3. 导出数据库中存在但不在 schema 中的键（自定义动态配置）
+    custom_keys = [k for k in db_map.keys() if k not in properties]
+    if custom_keys:
+        env_content.append("# Custom/Dynamic Configurations")
+        for key in custom_keys:
+            value = db_map[key]["value"]
+            description = db_map[key].get("description", "Custom configuration")
+            env_content.append(f"# {description}")
+            env_content.append(f"{key.upper()}={value}\n")
+            
+    content = "\n".join(env_content)
+    
+    return StreamingResponse(
+        iter([content]), 
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename=browser_cluster_{time.strftime('%Y%m%d_%H%M%S')}.env"}
+    )
+
+
 @router.get("/")
 async def list_configs(current_admin: dict = Depends(get_current_admin)):
     """

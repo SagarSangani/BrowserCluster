@@ -24,7 +24,7 @@ def init_configs():
     exclude_keys = {'env_file', 'env_file_encoding', 'case_sensitive'}
     
     # 获取 Settings 类中定义的字段
-    fields = settings.model_fields.keys()
+    fields = settings.__class__.model_fields.keys()
     
     count = 0
     for key in fields:
@@ -57,7 +57,13 @@ def init_configs():
             "cache_enabled": "是否全局启用结果缓存",
             "default_cache_ttl": "默认缓存过期时间 (秒)",
             "node_id": "当前工作节点的唯一标识符",
-            "worker_concurrency": "单个 Worker 节点的并发任务数"
+            "worker_concurrency": "单个 Worker 节点的并发任务数",
+            "oss_enabled": "是否启用 OSS 存储 (开启后可选将 HTML 和截图存至 OSS)",
+            "oss_endpoint": "OSS 访问域名 (如 oss-cn-hangzhou.aliyuncs.com)",
+            "oss_access_key_id": "OSS AccessKey ID",
+            "oss_access_key_secret": "OSS AccessKey Secret",
+            "oss_bucket_name": "OSS Bucket 名称",
+            "oss_bucket_domain": "OSS 自定义域名或默认域名 (用于生成访问 URL)"
         }
         
         description = descriptions.get(key, f"系统配置项: {key}")
@@ -68,12 +74,10 @@ def init_configs():
             logger.info(f"已导入配置: {key} = {value}")
             count += 1
         else:
-            # 即使存在，如果描述是默认的或者空的，我们也更新一下描述
-            if not existing.get("description") or "从环境变量加载" in existing.get("description", ""):
-                 sqlite_db.set_config(key, value, description)
-                 logger.info(f"更新配置描述: {key}")
-            else:
-                 logger.debug(f"配置已存在且有自定义描述，跳过: {key}")
+            # 即使存在，我们也更新一下描述，确保 OSS 相关的描述被写入
+            sqlite_db.set_config(key, value, description)
+            logger.info(f"更新配置: {key}")
+            count += 1
             
     logger.info(f"初始化完成，共导入 {count} 条配置。")
 

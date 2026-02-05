@@ -328,6 +328,20 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
+                  <el-form-item label="存储位置">
+                    <el-radio-group v-model="scrapeForm.params.storage_type" size="default">
+                      <el-radio-button label="mongo">MongoDB</el-radio-button>
+                      <el-radio-button label="oss">OSS 存储</el-radio-button>
+                    </el-radio-group>
+                    <div class="form-item-tip" v-if="scrapeForm.params.storage_type === 'oss'">
+                      请确保已在 <el-link type="primary" :underline="false" href="/settings">系统设置</el-link> 中配置 OSS 凭据
+                    </div>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              
+              <el-row :gutter="20">
+                <el-col :span="12">
                   <el-form-item label="数据缓存">
                     <div class="switch-container">
                       <el-switch v-model="scrapeForm.cache.enabled" />
@@ -335,11 +349,12 @@
                     </div>
                   </el-form-item>
                 </el-col>
+                <el-col :span="12" v-if="scrapeForm.cache.enabled">
+                  <el-form-item label="缓存有效期 (TTL/秒)">
+                    <el-input-number v-model="scrapeForm.cache.ttl" :min="60" :step="60" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
               </el-row>
-              
-              <el-form-item label="缓存有效期 (TTL/秒)" v-if="scrapeForm.cache.enabled">
-                <el-input-number v-model="scrapeForm.cache.ttl" :min="60" :step="60" style="width: 100%" />
-              </el-form-item>
             </div>
           </el-tab-pane>
 
@@ -540,6 +555,13 @@
                 </div>
                 <div class="feature-item">
                   <div class="feature-info">
+                    <span class="feature-name">保存 HTML</span>
+                    <span class="feature-desc">将完整的网页源码保存到数据库或 OSS</span>
+                  </div>
+                  <el-switch v-model="scrapeForm.params.save_html" />
+                </div>
+                <div class="feature-item">
+                  <div class="feature-info">
                     <span class="feature-name">自动截图</span>
                     <span class="feature-desc">保存网页快照用于调试或取证</span>
                   </div>
@@ -664,6 +686,43 @@
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="节点 ID">{{ currentTask.node_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="浏览器引擎">
+                <el-tag size="default" type="primary" effect="plain">
+                  {{ currentTask.params?.engine || 'playwright' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="反检测 (Stealth)">
+                <el-tag :type="currentTask.params?.stealth ? 'success' : 'info'" size="default">
+                  {{ currentTask.params?.stealth ? '开启' : '关闭' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="存储位置">
+                <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="default">
+                  {{ currentTask.params?.storage_type === 'oss' ? 'OSS 对象存储' : 'MongoDB 数据库' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="保存 HTML">
+                <el-tag :type="currentTask.params?.save_html !== false ? 'success' : 'info'" size="default">
+                  {{ currentTask.params?.save_html !== false ? '是' : '否' }}
+                </el-tag>
+              </el-descriptions-item>
+              
+              <el-descriptions-item label="OSS HTML 路径" :span="2" v-if="currentTask.result?.oss_html">
+                <div class="oss-path-info">
+                  <el-link :href="currentTask.result.oss_html" target="_blank" type="primary" class="detail-url-link">
+                    {{ currentTask.result.oss_html }}
+                  </el-link>
+                  <el-button size="small" link @click="copyToClipboard(currentTask.result.oss_html)">复制</el-button>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item label="OSS 截图路径" :span="2" v-if="currentTask.result?.oss_screenshot">
+                <div class="oss-path-info">
+                  <el-link :href="currentTask.result.oss_screenshot" target="_blank" type="primary" class="detail-url-link">
+                    {{ currentTask.result.oss_screenshot }}
+                  </el-link>
+                  <el-button size="small" link @click="copyToClipboard(currentTask.result.oss_screenshot)">复制</el-button>
+                </div>
+              </el-descriptions-item>
             </el-descriptions>
 
             <div v-if="currentTask.result" class="metadata-section">
@@ -714,27 +773,30 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="截图预览" name="screenshot" v-if="currentTask.status === 'success' && currentTask.params?.screenshot">
+          <el-tab-pane label="截图预览" name="screenshot" v-if="currentTask.status === 'success' && (currentTask.params?.screenshot || currentTask.result?.oss_screenshot)">
             <div class="screenshot-container" v-loading="!currentTask.result?.screenshot">
-              <el-image 
-                v-if="currentTask.result?.screenshot"
-                :src="'data:image/png;base64,' + currentTask.result.screenshot" 
-                :preview-src-list="['data:image/png;base64,' + currentTask.result.screenshot]"
-                fit="contain"
-              >
-                <template #error>
-                  <div class="image-slot">
-                    <el-icon><picture /></el-icon>
-                  </div>
-                </template>
-              </el-image>
+              <template v-if="currentTask.result?.screenshot">
+                <el-image 
+                  :src="currentTask.result.screenshot.startsWith('http') ? currentTask.result.screenshot : 'data:image/png;base64,' + currentTask.result.screenshot" 
+                  :preview-src-list="[currentTask.result.screenshot.startsWith('http') ? currentTask.result.screenshot : 'data:image/png;base64,' + currentTask.result.screenshot]"
+                  fit="contain"
+                >
+                  <template #error>
+                    <div class="image-slot">
+                      <el-icon><picture /></el-icon>
+                    </div>
+                  </template>
+                </el-image>
+              </template>
               <el-empty v-else description="正在加载截图..." />
             </div>
           </el-tab-pane>
 
           <el-tab-pane label="HTML 源码" name="html" v-if="currentTask.status === 'success'">
-            <div class="html-container" v-loading="!currentTask.result?.html">
-              <pre v-if="currentTask.result?.html"><code>{{ currentTask.result.html }}</code></pre>
+            <div class="html-container" v-loading="loadingHtml">
+              <template v-if="currentTask.result?.html">
+                <pre><code>{{ currentTask.result.html }}</code></pre>
+              </template>
               <el-empty v-else description="正在加载源码..." />
             </div>
           </el-tab-pane>
@@ -852,6 +914,7 @@ const activeConfigTab = ref('basic')
 const matchedRules = ref([])
 const matchedCookies = ref(false)
 let lastCheckedDomain = ''
+const loadingHtml = ref(false)
 
 const getParserTypeTag = (type) => {
   const map = {
@@ -981,6 +1044,26 @@ const handleLlmFieldsChange = (val) => {
   scrapeForm.value.params.parser_config.fields = val
 }
 
+const openUrl = (url) => {
+  if (url) window.open(url, '_blank')
+}
+
+const copyToClipboard = (text) => {
+  if (!text) return
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    // 降级方案
+    const input = document.createElement('input')
+    input.value = text
+    document.body.appendChild(input)
+    input.select()
+    document.execCommand('copy')
+    document.body.removeChild(input)
+    ElMessage.success('已复制到剪贴板')
+  })
+}
+
 // 计算有效 URL 数量
 const batchUrlCount = computed(() => {
   if (batchMode.value === 'text') {
@@ -1035,6 +1118,8 @@ const scrapeForm = ref({
       },
       cookies: '',
       stealth: true,
+      storage_type: 'mongo',
+      save_html: true,
   parser: '',
   parser_config: {
     fields: ['title', 'content']
@@ -1185,6 +1270,9 @@ const handleRetry = async (taskId) => {
 
 const viewTask = async (task) => {
   try {
+    // 重置已加载的 HTML 状态
+    loadingHtml.value = false
+    
     // 默认不加载 HTML 和截图，只有切换到对应标签页时才加载（或者由用户点击加载）
     const data = await getTask(task.task_id, { include_html: false, include_screenshot: false })
     currentTask.value = data
@@ -1200,22 +1288,34 @@ watch(activeTab, async (newTab) => {
   if (!currentTask.value) return
   
   const taskId = currentTask.value.task_id
-  if (newTab === 'html' && !currentTask.value.result?.html) {
+  const result = currentTask.value.result || {}
+  
+  if (newTab === 'html') {
+    // 如果已经有 HTML 内容或者是正在加载，则跳过
+    if (result.html || loadingHtml.value) return
+    
+    loadingHtml.value = true
     try {
-      const data = await getTask(taskId, { include_html: true })
+      // 后端 getTask API 会自动从 OSS 加载内容并返回在 result.html 中
+      const data = await getTask(taskId, { include_html: true , include_screenshot: false})
       if (data.result?.html) {
         currentTask.value.result.html = data.result.html
       }
     } catch (e) {
-      ElMessage.error('加载 HTML 失败')
+      console.error('加载 HTML 失败:', e)
+      ElMessage.error('加载 HTML 源码失败')
+    } finally {
+      loadingHtml.value = false
     }
-  } else if (newTab === 'screenshot' && !currentTask.value.result?.screenshot) {
+  } else if (newTab === 'screenshot' && !result.screenshot) {
     try {
-      const data = await getTask(taskId, { include_screenshot: true })
+      // 后端 getTask API 会自动从 OSS 加载内容并返回在 result.screenshot 中
+      const data = await getTask(taskId, { include_screenshot: true, include_html: false })
       if (data.result?.screenshot) {
         currentTask.value.result.screenshot = data.result.screenshot
       }
     } catch (e) {
+      console.error('加载截图失败:', e)
       ElMessage.error('加载截图失败')
     }
   }
@@ -1395,14 +1495,6 @@ const getStatusText = (status) => {
 const formatDate = (date) => {
   if (!date) return ''
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
-}
-
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
-    ElMessage.success('已复制到剪贴板')
-  }).catch(() => {
-    ElMessage.error('复制失败')
-  })
 }
 
 const formatJSON = (content) => {
@@ -2321,6 +2413,20 @@ onMounted(() => {
 .detail-url-link {
   font-size: 14px;
   word-break: break-all;
+}
+
+.oss-path-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.oss-path-info .el-link {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metadata-section, .error-section {

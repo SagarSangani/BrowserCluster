@@ -4,6 +4,7 @@
 使用 pydantic_settings 从环境变量或 .env 文件加载配置
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -62,6 +63,14 @@ class Settings(BaseSettings):
     llm_api_base: str = "https://api.openai.com/v1"  # LLM API 基础地址
     llm_api_key: str = ""  # LLM API 密钥
     llm_model: str = "gpt-3.5-turbo"  # LLM 模型名称
+
+    # OSS 存储配置
+    oss_enabled: bool = Field(default=False, description="是否启用 OSS 存储，开启后 HTML 和截图将上传至阿里云 OSS")
+    oss_endpoint: str = Field(default="oss-cn-hangzhou.aliyuncs.com", description="OSS 访问域名")
+    oss_access_key_id: str = Field(default="", description="OSS AccessKey ID")
+    oss_access_key_secret: str = Field(default="", description="OSS AccessKey Secret")
+    oss_bucket_name: str = Field(default="", description="OSS Bucket 名称")
+    oss_bucket_domain: str = Field(default="", description="OSS 自定义域名或默认域名 (用于生成访问 URL)")
 
     # 日志配置
     log_level: str = "INFO"  # 日志级别

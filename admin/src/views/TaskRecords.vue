@@ -168,23 +168,24 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="网页截图" name="screenshot" v-if="currentTask.result?.screenshot || currentTask.params?.screenshot">
+          <el-tab-pane label="网页截图" name="screenshot" v-if="currentTask.result?.screenshot || currentTask.result?.oss_screenshot || currentTask.params?.screenshot">
             <div class="screenshot-container" v-loading="loadingScreenshot">
-              <el-image 
-                v-if="currentTask.result?.screenshot"
-                :src="`data:image/png;base64,${currentTask.result.screenshot}`" 
-                :preview-src-list="[`data:image/png;base64,${currentTask.result.screenshot}`]"
-                fit="contain"
-              >
-                <template #error>
-                  <div class="image-error">截图加载失败</div>
-                </template>
-              </el-image>
+              <template v-if="currentTask.result?.screenshot">
+                <el-image 
+                  :src="currentTask.result.screenshot.startsWith('http') ? currentTask.result.screenshot : `data:image/png;base64,${currentTask.result.screenshot}`" 
+                  :preview-src-list="[currentTask.result.screenshot.startsWith('http') ? currentTask.result.screenshot : `data:image/png;base64,${currentTask.result.screenshot}`]"
+                  fit="contain"
+                >
+                  <template #error>
+                    <div class="image-error">截图加载失败</div>
+                  </template>
+                </el-image>
+              </template>
               <el-empty v-else description="正在加载截图..." />
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="HTML 源码" name="html" v-if="currentTask.result?.html || currentTask.status === 'success'">
+          <el-tab-pane label="HTML 源码" name="html" v-if="currentTask.result?.html || currentTask.result?.oss_html || currentTask.status === 'success'">
             <div class="detail-section">
               <div class="section-header">
                 <span class="section-title">原始 HTML</span>
@@ -251,28 +252,36 @@ watch(activeTab, async (newTab) => {
   if (!currentTask.value) return
   
   const taskId = currentTask.value.task_id
-  if (newTab === 'html' && !currentTask.value.result?.html) {
+  const result = currentTask.value.result || {}
+  
+  if (newTab === 'html') {
+    if (result.html || loadingHtml.value) return
+    
     loadingHtml.value = true
     try {
+      // 后端 getTask API 会自动从 OSS 加载内容并返回在 result.html 中
       const data = await getTask(taskId, { include_html: true, include_screenshot: false })
       if (data.result?.html) {
         if (!currentTask.value.result) currentTask.value.result = {}
         currentTask.value.result.html = data.result.html
       }
     } catch (e) {
-      ElMessage.error('加载 HTML 失败')
+      console.error('加载 HTML 失败:', e)
+      ElMessage.error('加载 HTML 源码失败')
     } finally {
       loadingHtml.value = false
     }
-  } else if (newTab === 'screenshot' && !currentTask.value.result?.screenshot) {
+  } else if (newTab === 'screenshot' && !result.screenshot) {
     loadingScreenshot.value = true
     try {
+      // 后端 getTask API 会自动从 OSS 加载内容并返回在 result.screenshot 中
       const data = await getTask(taskId, { include_html: false, include_screenshot: true })
       if (data.result?.screenshot) {
         if (!currentTask.value.result) currentTask.value.result = {}
         currentTask.value.result.screenshot = data.result.screenshot
       }
     } catch (e) {
+      console.error('加载截图失败:', e)
       ElMessage.error('加载截图失败')
     } finally {
       loadingScreenshot.value = false
@@ -331,11 +340,13 @@ const goBack = () => {
 
 const viewTaskDetail = async (row) => {
   try {
-    // 默认不加载 HTML 和截图，只有切换到对应标签页时才加载
+    loadingHtml.value = false
+    loadingScreenshot.value = false
+    // 初始只获取基本信息
     const data = await getTask(row.task_id, { include_html: false, include_screenshot: false })
     currentTask.value = data
-    showDetailDialog.value = true
     activeTab.value = data.result?.parsed_data ? 'data' : 'info'
+    showDetailDialog.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')
   }

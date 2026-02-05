@@ -166,12 +166,11 @@
             </template>
             
             <div class="tab-content">
+              <el-form-item label="任务名称" prop="name" required>
+                <el-input v-model="form.name" placeholder="请输入任务名称" />
+              </el-form-item>
+
               <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item label="任务名称" prop="name" required>
-                    <el-input v-model="form.name" placeholder="请输入任务名称" />
-                  </el-form-item>
-                </el-col>
                 <el-col :span="12">
                   <el-form-item label="任务优先级">
                     <el-select v-model="form.priority" style="width: 100%">
@@ -179,6 +178,33 @@
                       <el-option label="普通优先级 (5)" :value="5" />
                       <el-option label="最低优先级 (1)" :value="1" />
                     </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="存储位置">
+                    <el-radio-group v-model="form.params.storage_type" size="default">
+                      <el-radio-button label="mongo">MongoDB</el-radio-button>
+                      <el-radio-button label="oss">OSS 存储</el-radio-button>
+                    </el-radio-group>
+                    <div class="form-item-tip" v-if="form.params.storage_type === 'oss'">
+                      请确保已在 <el-link type="primary" :underline="false" @click="router.push('/settings')">系统设置</el-link> 中配置 OSS 凭据
+                    </div>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-row :gutter="20" v-if="form.cache">
+                <el-col :span="12">
+                  <el-form-item label="数据缓存">
+                    <div class="switch-container">
+                      <el-switch v-model="form.cache.enabled" />
+                      <span class="switch-tip">{{ form.cache.enabled ? '开启 (节省资源)' : '关闭 (实时抓取)' }}</span>
+                    </div>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" v-if="form.cache.enabled">
+                  <el-form-item label="缓存有效期 (TTL/秒)">
+                    <el-input-number v-model="form.cache.ttl" :min="60" :step="60" controls-position="right" style="width: 100%" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -221,6 +247,12 @@
                     发现 {{ matchedRules.length }} 条可用规则
                     <el-icon class="el-icon--right"><arrow-down /></el-icon>
                   </el-button>
+                  <template #header>
+                    <div class="dropdown-header">选择要应用的解析规则</div>
+                  </template>
+                  <template #footer>
+                    <div class="dropdown-footer">点击规则可直接应用配置</div>
+                  </template>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item 
@@ -263,7 +295,15 @@
                     <el-button size="small" plain @click="applyLlmPreset('contact')">联系方式</el-button>
                   </el-button-group>
                 </div>
-                <el-form-item label="目标提取字段" class="mt-4">
+                <el-form-item class="mt-4">
+                  <template #label>
+                    <div class="label-with-help">
+                      <span>目标提取字段</span>
+                      <el-tooltip content="大模型将按照选定的键名生成 JSON 结果" placement="top">
+                        <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                      </el-tooltip>
+                    </div>
+                  </template>
                   <el-select
                     v-model="selectedLlmFields"
                     multiple
@@ -334,14 +374,25 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item label="截图配置">
-                    <div class="switch-container">
-                      <el-switch v-model="form.params.screenshot" />
-                      <span class="switch-tip">{{ form.params.screenshot ? '开启' : '关闭' }}</span>
-                    </div>
+                  <el-form-item label="渲染超时 (s)">
+                    <el-input-number 
+                      :model-value="form.params.timeout / 1000" 
+                      @update:model-value="val => form.params.timeout = val * 1000"
+                      :min="5" 
+                      :step="5" 
+                      style="width: 100%" 
+                    />
                   </el-form-item>
                 </el-col>
               </el-row>
+
+              <el-form-item label="视口尺寸 (分辨率)">
+                <div class="viewport-input">
+                  <el-input-number v-model="form.params.viewport.width" :min="320" placeholder="宽度" controls-position="right" />
+                  <span class="sep">×</span>
+                  <el-input-number v-model="form.params.viewport.height" :min="240" placeholder="高度" controls-position="right" />
+                </div>
+              </el-form-item>
 
               <div class="feature-settings">
                 <div class="feature-item">
@@ -353,8 +404,29 @@
                 </div>
                 <div class="feature-item">
                   <div class="feature-info">
+                    <span class="feature-name">保存 HTML</span>
+                    <span class="feature-desc">将完整的网页源码保存到数据库或 OSS</span>
+                  </div>
+                  <el-switch v-model="form.params.save_html" />
+                </div>
+                <div class="feature-item">
+                  <div class="feature-info">
+                    <span class="feature-name">自动截图</span>
+                    <span class="feature-desc">保存网页快照用于调试或取证</span>
+                  </div>
+                  <el-switch v-model="form.params.screenshot" />
+                </div>
+                <div class="feature-item" v-if="form.params.screenshot">
+                  <div class="feature-info">
+                    <span class="feature-name">全屏快照</span>
+                    <span class="feature-desc">捕获整个页面高度而不仅是可视区域</span>
+                  </div>
+                  <el-switch v-model="form.params.is_fullscreen" />
+                </div>
+                <div class="feature-item">
+                  <div class="feature-info">
                     <span class="feature-name">屏蔽图片/媒体</span>
-                    <span class="feature-desc">不加载图片资源，加快抓取速度</span>
+                    <span class="feature-desc">不加载图片和视频资源，加快抓取速度</span>
                   </div>
                   <el-switch v-model="form.params.block_images" />
                 </div>
@@ -431,24 +503,6 @@
                   />
                 </template>
               </div>
-
-              <div class="section-title mt-4">缓存策略</div>
-              <el-row :gutter="20" v-if="form.cache">
-                <el-col :span="12">
-                  <el-form-item label="启用缓存">
-                    <el-switch v-model="form.cache.enabled" />
-                    <div class="input-tip" v-if="form.cache.enabled">
-                      <el-icon><InfoFilled /></el-icon>
-                      开启后，在 TTL 时间内重复执行将直接返回上次抓取的结果，不会触发真实浏览器访问。
-                    </div>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" v-if="form.cache.enabled">
-                  <el-form-item label="有效时长 (TTL/秒)">
-                    <el-input-number v-model="form.cache.ttl" :min="60" controls-position="right" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
             </div>
           </el-tab-pane>
 
@@ -554,17 +608,32 @@ const form = ref({
   priority: 5,
   params: {
     engine: 'playwright',
-    screenshot: true,
     wait_for: 'networkidle',
-    parser: '',
-    cookies: '',
-    stealth: true,
+    wait_time: 3000,
+    timeout: 30000,
+    screenshot: true,
+    is_fullscreen: false,
     block_images: false,
+    block_media: false,
+    viewport: {
+      width: 1920,
+      height: 1080
+    },
+    parser: '',
+    parser_config: {
+      fields: ['title', 'content']
+    },
     proxy: {
       server: '',
       username: '',
       password: ''
-    }
+    },
+    cookies: '',
+    stealth: true,
+    storage_type: 'mongo',
+    save_html: true,
+    intercept_apis: [],
+    intercept_continue: false
   },
   cache: {
     enabled: false,
@@ -770,19 +839,32 @@ const openCreateDialog = () => {
     priority: 5,
     params: {
       engine: 'playwright',
-      screenshot: true,
       wait_for: 'networkidle',
-      parser: '',
-      cookies: '',
-      stealth: true,
+      wait_time: 3000,
+      timeout: 30000,
+      screenshot: true,
+      is_fullscreen: false,
       block_images: false,
-      intercept_apis: [],
-      intercept_continue: false,
+      block_media: false,
+      viewport: {
+        width: 1920,
+        height: 1080
+      },
+      parser: '',
+      parser_config: {
+        fields: ['title', 'content']
+      },
       proxy: {
         server: '',
         username: '',
         password: ''
-      }
+      },
+      cookies: '',
+      stealth: true,
+      storage_type: 'mongo',
+      save_html: true,
+      intercept_apis: [],
+      intercept_continue: false
     },
     cache: {
       enabled: false,
@@ -813,6 +895,10 @@ const handleEdit = (row) => {
     form.value.params.engine = 'playwright'
   }
   
+  if (!form.value.params.storage_type) {
+    form.value.params.storage_type = 'mongo'
+  }
+  
   // 处理间隔回显
   if (row.interval) {
     if (row.interval % 86400 === 0) {
@@ -834,28 +920,70 @@ const handleEdit = (row) => {
   // 确保基础结构完整
   if (!form.value.params) {
     form.value.params = {
-      screenshot: true,
+      engine: 'playwright',
       wait_for: 'networkidle',
+      wait_time: 3000,
+      timeout: 30000,
+      screenshot: true,
+      is_fullscreen: false,
+      block_images: false,
+      block_media: false,
+      viewport: {
+        width: 1920,
+        height: 1080
+      },
       parser: '',
+      parser_config: {
+        fields: ['title', 'content']
+      },
+      proxy: {
+        server: '',
+        username: '',
+        password: ''
+      },
       cookies: '',
       stealth: true,
+      storage_type: 'mongo',
+      save_html: true,
+      intercept_apis: [],
+      intercept_continue: false
+    }
+  } else {
+    // 补全缺失字段
+    const defaultParams = {
+      engine: 'playwright',
+      wait_for: 'networkidle',
+      wait_time: 3000,
+      timeout: 30000,
+      screenshot: true,
+      is_fullscreen: false,
       block_images: false,
+      block_media: false,
+      viewport: {
+        width: 1920,
+        height: 1080
+      },
+      parser: '',
+      stealth: true,
+      storage_type: 'mongo',
+      save_html: true,
       intercept_apis: [],
       intercept_continue: false,
       proxy: { server: '', username: '', password: '' }
     }
-  }
-  if (!form.value.params.intercept_apis) {
-    form.value.params.intercept_apis = []
-  }
-  if (form.value.params.intercept_continue === undefined) {
-    form.value.params.intercept_continue = false
-  }
-  if (!form.value.cache) {
-    form.value.cache = { enabled: false, ttl: 3600 }
-  }
-  if (!form.value.params.proxy) {
-    form.value.params.proxy = { server: '', username: '', password: '' }
+    
+    Object.keys(defaultParams).forEach(key => {
+      if (form.value.params[key] === undefined) {
+        form.value.params[key] = defaultParams[key]
+      }
+    })
+    
+    if (!form.value.params.viewport) {
+      form.value.params.viewport = { width: 1920, height: 1080 }
+    }
+    if (!form.value.params.proxy) {
+      form.value.params.proxy = { server: '', username: '', password: '' }
+    }
   }
 
   // 处理解析配置回显
@@ -1246,18 +1374,46 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #334155;
-  margin-bottom: 16px;
-  padding-left: 10px;
-  border-left: 4px solid #3b82f6;
+  color: #1e293b;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #3b82f6;
+}
+
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+}
+
+.switch-tip {
+  font-size: 13px;
+  color: #64748b;
 }
 
 .parser-header-actions {
   margin-bottom: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+.dropdown-header {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-footer {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #cbd5e1;
+  text-align: center;
+  border-top: 1px solid #f1f5f9;
 }
 
 .rule-item-dropdown {
@@ -1281,42 +1437,39 @@ onMounted(() => {
 }
 
 .parser-config-area {
+  margin-top: 20px;
+  padding: 16px;
   background-color: #f8fafc;
-  padding: 20px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  margin-top: 16px;
+  border: 1px solid #f1f5f9;
 }
 
-.parser-presets {
+.label-with-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.help-icon {
+  font-size: 14px;
+  color: #94a3b8;
+  cursor: help;
+}
+
+.viewport-input {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
-.preset-label {
-  font-size: 13px;
-  color: #64748b;
-}
-
-.xpath-rules-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-weight: 600;
-  color: #475569;
-}
-
-.xpath-rule-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+.viewport-input .sep {
+  color: #94a3b8;
+  font-weight: bold;
 }
 
 .feature-settings {
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-top: 20px;
 }
@@ -1325,27 +1478,27 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
   background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
   border-radius: 8px;
+  border: 1px solid #f1f5f9;
 }
 
 .feature-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .feature-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #1e293b;
 }
 
 .feature-desc {
   font-size: 12px;
-  color: #64748b;
-  margin-top: 2px;
+  color: #94a3b8;
 }
 
 .schedule-config-card {

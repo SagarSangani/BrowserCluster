@@ -9,6 +9,12 @@ from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, HttpUrl, Field
 
 
+class StorageType(str, Enum):
+    """存储类型枚举"""
+    MONGO = "mongo"  # 存储到 MongoDB
+    OSS = "oss"      # 存储到 OSS
+
+
 class ScrapeParams(BaseModel):
     """抓取参数模型"""
     engine: str = "playwright"  # 浏览器引擎: playwright, drissionpage
@@ -27,8 +33,10 @@ class ScrapeParams(BaseModel):
     stealth: bool = True  # 是否启用反检测 (stealth)
     intercept_apis: Optional[List[str]] = None  # 要拦截的接口 URL 模式列表
     intercept_continue: bool = False  # 拦截接口后是否继续请求 (默认 False)
+    save_html: bool = True  # 是否保存 HTML 源码
     parser: Optional[str] = None  # 解析服务类型: gne, llm, xpath
     parser_config: Optional[Dict[str, Any]] = None  # 解析配置 (例如 LLM 需要解析的字段)
+    storage_type: StorageType = StorageType.MONGO  # 存储位置: mongo, oss
 
 
 class CacheConfig(BaseModel):
@@ -59,6 +67,9 @@ class ScrapedResult(BaseModel):
     """抓取结果模型"""
     html: Optional[str] = None  # 渲染后的 HTML (可选，支持字段投影优化)
     screenshot: Optional[str] = None  # 截图（base64 编码）
+    oss_html: Optional[str] = None  # OSS 存储的 HTML 链接
+    oss_screenshot: Optional[str] = None  # OSS 存储的截图链接
+    storage_type: str = "mongo"  # 存储位置: mongo, oss
     metadata: Optional[TaskMetadata] = None  # 元数据
     intercepted_apis: Optional[Dict[str, List[Dict[str, Any]]]] = None  # 拦截到的接口数据 (键名中的 . 和 $ 已被转义为 _)
     parsed_data: Optional[Dict[str, Any]] = None  # HTML 解析后的结构化数据

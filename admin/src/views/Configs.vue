@@ -10,6 +10,9 @@
         <el-button type="info" size="large" @click="handleViewSystemLogs" class="action-btn">
           <el-icon><Document /></el-icon> 系统日志
         </el-button>
+        <el-button type="warning" size="large" @click="handleExport" class="action-btn">
+          <el-icon><Download /></el-icon> 导出配置
+        </el-button>
         <el-button type="danger" size="large" @click="handleRestart" :loading="restarting" class="action-btn">
           <el-icon><Cpu /></el-icon> 强制重启
         </el-button>
@@ -69,8 +72,11 @@
                 <el-icon><Setting /></el-icon>
               </div>
               <code class="key-code" :class="{ 'is-schema': row.isSchema && !row.isDynamic }">{{ row.key }}</code>
-              <el-tag v-if="!row.isDynamic" size="small" type="info" effect="plain" class="status-tag">系统默认</el-tag>
-              <el-tag v-else size="small" type="success" effect="plain" class="status-tag">已配置</el-tag>
+              <el-tag v-if="row.value === null || row.value === undefined || row.value === ''" size="small" type="danger" effect="plain" class="status-tag">未配置</el-tag>
+              <template v-else>
+                <el-tag v-if="!row.isDynamic" size="small" type="info" effect="plain" class="status-tag">系统默认</el-tag>
+                <el-tag v-else size="small" type="success" effect="plain" class="status-tag">已配置</el-tag>
+              </template>
             </div>
           </template>
         </el-table-column>
@@ -83,7 +89,10 @@
                 <el-icon class="copy-icon" @click.stop="copyValue(row.value)"><DocumentCopy /></el-icon>
               </div>
             </el-tooltip>
-            <div v-if="!row.isDynamic" class="unconfigured-hint">
+            <div v-if="row.value === null || row.value === undefined || row.value === ''" class="unconfigured-hint is-empty">
+              <el-icon><Warning /></el-icon> 该项尚未配置，可能会影响系统相关功能
+            </div>
+            <div v-else-if="!row.isDynamic" class="unconfigured-hint">
               <el-icon><InfoFilled /></el-icon> 当前使用系统默认值，点击编辑可自定义
             </div>
           </template>
@@ -219,12 +228,13 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Plus, Refresh, Delete, Setting, Timer, Search, 
-  Edit, DocumentCopy, InfoFilled, Cpu, Document
+  Edit, DocumentCopy, InfoFilled, Cpu, Document, Download, Warning
 } from '@element-plus/icons-vue'
 import { 
   getConfigs, 
   getConfigSchema,
   restartSystem,
+  exportConfigs,
   createConfig as createConfigApi, 
   updateConfig as updateConfigApi, 
   deleteConfig as deleteConfigApi 
@@ -464,6 +474,37 @@ const copyValue = (value) => {
 const formatDate = (date) => {
   if (!date) return '-'
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const handleExport = async () => {
+  try {
+    const response = await exportConfigs()
+    
+    // 获取文件名
+    let filename = 'configs.env'
+    const contentDisposition = response.headers['content-disposition']
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename=(.+)/)
+      if (filenameMatch.length > 1) filename = filenameMatch[1]
+    }
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('配置导出成功')
+  } catch (error) {
+    console.error('Export failed:', error)
+    ElMessage.error('导出配置失败')
+  }
 }
 
 // 日志处理方法
@@ -732,6 +773,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.unconfigured-hint.is-empty {
+  color: #ef4444;
+  font-weight: 500;
 }
 
 .copy-icon {

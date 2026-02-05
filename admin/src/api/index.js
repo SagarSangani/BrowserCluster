@@ -200,6 +200,11 @@ export const updateConfig = async (key, data) => {
   return response.data
 }
 
+export const exportConfigs = async () => {
+  const response = await api.get('/configs/export', { responseType: 'blob' })
+  return response
+}
+
 export const deleteConfig = async (key) => {
   const response = await api.delete(`/configs/${key}`)
   return response.data

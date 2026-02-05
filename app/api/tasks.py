@@ -3,12 +3,15 @@
 
 提供任务查询、列表、删除等功能
 """
+import base64
 from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime
 from app.models.task import TaskResponse, BatchDeleteRequest
 from app.db.mongo import mongo
 from app.services.queue_service import rabbitmq_service
+from app.services.oss_service import oss_service
 from app.core.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["Tasks"])
 
@@ -44,8 +47,8 @@ async def get_task(
 
     Args:
         task_id: 任务 ID
-        include_html: 是否在结果中包含完整的 HTML 源码 (数据量大时建议关闭)
-        include_screenshot: 是否在结果中包含截图 Base64 (数据量大时建议关闭)
+        include_html: 是否在结果中包含完整的 HTML 源码
+        include_screenshot: 是否在结果中包含截图数据
 
     Returns:
         TaskResponse: 任务详细信息
@@ -62,6 +65,26 @@ async def get_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    result = task.get("result", {})
+    
+    # 如果需要 HTML 且 MongoDB 中没有但 OSS 中有，则从 OSS 获取 (使用 SDK 绕过 403)
+    if include_html and result and not result.get("html") and result.get("oss_html"):
+        try:
+            content = oss_service.get_content(result["oss_html"])
+            if content:
+                result["html"] = content.decode('utf-8', errors='ignore')
+        except Exception as e:
+            print(f"Error fetching HTML from OSS via SDK: {e}")
+
+    # 如果需要截图且 MongoDB 中没有但 OSS 中有，则从 OSS 获取并转为 Base64
+    if include_screenshot and result and not result.get("screenshot") and result.get("oss_screenshot"):
+        try:
+            content = oss_service.get_content(result["oss_screenshot"])
+            if content:
+                result["screenshot"] = base64.b64encode(content).decode('utf-8')
+        except Exception as e:
+            print(f"Error fetching screenshot from OSS via SDK: {e}")
+
     return TaskResponse(
         task_id=task["task_id"],
         url=task["url"],
@@ -70,7 +93,7 @@ async def get_task(
         params=task.get("params"),
         priority=task.get("priority"),
         cache=task.get("cache"),
-        result=task.get("result"),
+        result=result,
         error=task.get("error"),
         cached=task.get("cached", False),
         created_at=task["created_at"],

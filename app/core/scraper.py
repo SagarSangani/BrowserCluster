@@ -215,7 +215,7 @@ class Scraper:
                 await page.wait_for_timeout(wait_time)
 
             # 获取页面 HTML
-            html = await page.content()
+            html = await page.content() if params.get("save_html", True) else ""
             actual_url = page.url # 获取重定向后的实际 URL
 
             # 计算加载时间
@@ -371,7 +371,7 @@ class Scraper:
                     logger.warning(f"Selector {selector} not found within timeout")
             
             # 获取内容
-            html = tab.html
+            html = tab.html if params.get("save_html", True) else ""
             title = tab.title
             actual_url = tab.url
             

@@ -12,6 +12,7 @@ from app.services.queue_service import rabbitmq_service
 from app.services.cache_service import cache_service
 from app.core.scraper import scraper
 from app.services.parser_service import parser_service
+from app.services.oss_service import oss_service
 from app.core.config import settings
 from app.db.mongo import mongo
 from app.db.redis import redis_client
@@ -100,7 +101,7 @@ class Worker:
             # 处理抓取结果
             if result["status"] == "success":
                 # 更新任务状态为成功
-                await self._update_task_success(task_id, result)
+                await self._update_task_success(task_id, result, params)
 
                 # 如果启用缓存，则保存结果到缓存
                 if task_data.get("cache", {}).get("enabled"):
@@ -152,14 +153,50 @@ class Worker:
             }
         )
 
-    async def _update_task_success(self, task_id: str, result: dict):
+    async def _update_task_success(self, task_id: str, result: dict, params: dict = None):
         """
         更新任务为成功状态
 
         Args:
             task_id: 任务 ID
             result: 抓取结果
+            params: 任务参数
         """
+        # 处理存储逻辑
+        if params:
+            storage_type = params.get("storage_type", "mongo")
+            save_html = params.get("save_html", True)
+            
+            # 如果不保存 HTML，从结果中移除
+            if not save_html:
+                result.pop("html", None)
+            
+            # 处理 OSS 存储
+            if storage_type == "oss":
+                html = result.get("html")
+                screenshot = result.get("screenshot")
+                
+                # 上传到 OSS (如果显式指定了 OSS，则强制上传，忽略全局开关)
+                html_url, screenshot_url = oss_service.upload_task_assets(task_id, html, screenshot, force=True)
+                
+                # 更新结果：OSS 存储时，移除原始 html/screenshot 字段，仅保留 oss_ 路径
+                if html_url:
+                    result["oss_html"] = html_url  # 显式保存 OSS 路径
+                    result.pop("html", None)       # 移除原始字段
+                
+                if screenshot_url:
+                    result["oss_screenshot"] = screenshot_url  # 显式保存 OSS 路径
+                    result.pop("screenshot", None)             # 移除原始字段
+                
+                # 如果成功上传了任一资源，标记为 oss 存储
+                if html_url or screenshot_url:
+                    result["storage_type"] = "oss"
+                else:
+                    # 如果 OSS 上传失败且原本有数据，则保留原始数据（存入 Mongo）
+                    # 这样可以防止数据丢失，同时在 UI 上显示为存入 Mongo
+                    result["storage_type"] = "mongo"
+                    logger.warning(f"OSS upload failed for task {task_id}, falling back to MongoDB storage")
+
         mongo.tasks.update_one(
             {"task_id": task_id},
             {
