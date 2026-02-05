@@ -788,7 +788,8 @@
                   </template>
                 </el-image>
               </template>
-              <el-empty v-else description="正在加载截图..." />
+              <el-empty v-else-if="loadingScreenshot" description="正在加载截图..." />
+              <el-empty v-else description="暂无截图数据" />
             </div>
           </el-tab-pane>
 
@@ -797,7 +798,8 @@
               <template v-if="currentTask.result?.html">
                 <pre><code>{{ currentTask.result.html }}</code></pre>
               </template>
-              <el-empty v-else description="正在加载源码..." />
+              <el-empty v-else-if="loadingHtml" description="正在加载源码..." />
+              <el-empty v-else description="暂无 HTML 源码" />
             </div>
           </el-tab-pane>
 
