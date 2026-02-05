@@ -187,7 +187,7 @@
                       <el-radio-button label="oss">OSS 存储</el-radio-button>
                     </el-radio-group>
                     <div class="form-item-tip" v-if="form.params.storage_type === 'oss'">
-                      请确保已在 <el-link type="primary" :underline="false" @click="router.push('/settings')">系统设置</el-link> 中配置 OSS 凭据
+                      请确保已在 <el-link type="primary" :underline="false" @click="router.push('/configs')">系统设置</el-link> 中配置 OSS 凭据
                     </div>
                   </el-form-item>
                 </el-col>

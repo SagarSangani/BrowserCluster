@@ -1,7 +1,7 @@
 # Browser Cluster
 
 > [!IMPORTANT]
-> **前期项目会有较多 bug，请大家踊跃提 issues，作者看到后第一时间更新！具体的功能可以查看FUNCTIONALITY_GUIDE.md文件**
+> **前期项目会有较多 bug，请大家踊跃提 issues，作者看到后第一时间更新！**
 
 **Browser Cluster** 是一个高性能、分布式的浏览器自动化集群系统，基于 **Playwright** 和 **DrissionPage** 双浏览器引擎以及 FastAPI 构建。它支持大规模并发网页抓取、截图、解析及自动化操作，特别针对 Cloudflare 等高难度反爬网站进行了深度优化，具备完善的任务调度、结果缓存和节点管理功能。
 
@@ -19,6 +19,10 @@
 - **高效缓存**：基于 Redis 的结果缓存机制，支持自定义 TTL。
 - **资源优化**：智能拦截图片、媒体资源，显著提升渲染速度。
 - **API 拦截**：支持在渲染过程中提取特定 XHR/Fetch 接口数据。
+- **OSS 云存储支持**：
+    - 支持将抓取的 HTML 源码和页面截图自动上传至阿里云 OSS。
+    - 解决大规模数据存储压力，支持私有桶安全访问。
+    - 后端自动代理 OSS 内容，解决前端直接访问的跨域及权限问题。
 - **自动化调度**：内置定时任务引擎，支持 Interval 和 Cron 表达式，实现周期性数据采集。
 - **多模式解析提取**：集成多种结构化数据提取技术，适配不同复杂度的网页：
     - **智能通用解析 (GNE)**：基于正文抽取算法，无需配置规则即可自动提取新闻类网站的标题、正文及发布时间。
@@ -99,8 +103,8 @@
   - **任务管理**：全量任务历史溯源，支持结果预览及错误日志查看。
   - **节点管理**：监控集群 Worker 状态、负载情况及资源占用，支持节点上下线管理。
   - **解析规则**：可视化维护各网站的解析模板，支持在线测试规则有效性。
-  - **配置管理**：动态调整浏览器并发数、超时时间及全局代理设置。
-  - **用户管理**：基于角色的访问控制 (RBAC)，保障系统安全。
+  - **配置管理**：动态调整浏览器并发数、超时时间及全局代理设置，支持一键初始化系统配置到数据库。
+- **用户管理**：基于角色的访问控制 (RBAC)，保障系统安全。
 
 ## 📦 快速开始
 
@@ -212,15 +216,47 @@ docker run -d `
 
 主要配置项（可通过 `.env` 或环境变量设置）：
 
+### 1. 基础环境配置
+
 | 变量名 | 默认值 | 说明 |
 | :--- | :--- | :--- |
+| `DEBUG` | `true` | 是否开启调试模式（输出详细日志） |
+| `HOST` | `0.0.0.0` | 服务监听地址 |
+| `PORT` | `8000` | 服务监听端口 |
+| `SECRET_KEY` | `your-secret-key` | 系统安全密钥（建议生产环境务必修改） |
 | `MONGO_URI` | `mongodb://localhost:27017/` | MongoDB 连接地址 |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis 队列/缓存连接地址 |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis 任务队列/状态连接地址 |
+| `REDIS_CACHE_URL` | `redis://localhost:6379/1` | Redis 结果缓存连接地址 |
 | `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | RabbitMQ 连接地址 |
-| `BROWSER_TYPE` | `chromium` | 浏览器类型 |
+
+### 2. 浏览器与执行配置
+
+| 变量名 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `BROWSER_TYPE` | `chromium` | 默认浏览器类型 (目前仅支持 `chromium`) |
 | `HEADLESS` | `true` | 是否开启无头模式 |
-| `WORKER_CONCURRENCY` | `3` | 单个 Worker 的并发线程数 |
+| `STEALTH_MODE` | `true` | 是否开启反爬虫隐身模式 |
+| `DEFAULT_TIMEOUT` | `30000` | 默认任务超时时间（毫秒） |
+| `WORKER_CONCURRENCY` | `3` | 单个 Worker 节点的并发任务数 |
 | `NODE_ID` | `node-1` | 节点唯一标识 |
+
+### 3. OSS 存储配置 (可选)
+
+| 变量名 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `OSS_ENABLED` | `false` | 是否启用 OSS 存储（开启后可将结果存至云端） |
+| `OSS_ENDPOINT` | - | OSS 访问域名（如 `oss-cn-hangzhou.aliyuncs.com`） |
+| `OSS_ACCESS_KEY_ID` | - | OSS AccessKey ID |
+| `OSS_ACCESS_KEY_SECRET` | - | OSS AccessKey Secret |
+| `OSS_BUCKET_NAME` | - | OSS Bucket 名称 |
+
+### 4. LLM 大模型配置 (可选)
+
+| 变量名 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `LLM_API_BASE` | `https://api.openai.com/v1` | 大模型 API 基础地址 |
+| `LLM_API_KEY` | - | 大模型 API 密钥 |
+| `LLM_MODEL` | `gpt-3.5-turbo` | 使用的模型名称 |
 
 ## 📝 任务参数说明
 
@@ -266,6 +302,8 @@ docker run -d `
 | `intercept_apis` | list | `[]` | 要拦截并提取数据的接口 URL 模式列表（支持正则） |
 | `intercept_continue` | bool | `false` | 拦截接口后是否继续请求（默认 False 为中止请求） |
 | `viewport` | object | `{"width": 1920, "height": 1080}` | 模拟的浏览器视口大小 |
+| `storage_type` | string | `mongo` | 存储位置：`mongo` (默认) 或 `oss` (需配置凭据) |
+| `save_html` | bool | `true` | 是否保存 HTML 源码 |
 | `engine` | string | `playwright` | 浏览器引擎：`playwright` 或 `drissionpage` |
 | `proxy` | object | `null` | 代理服务器配置，格式：`{"server": "...", "username": "...", "password": "..."}` |
 | `cookies` | string/object/list | `null` | 注入 Cookie。支持字符串 (`name=val;`), JSON 对象 (`{name: val}`) 或 JSON 数组 (`[{name, value, ...}]`)。自动适配主域名。 |
