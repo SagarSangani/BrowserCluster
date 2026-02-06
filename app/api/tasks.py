@@ -4,9 +4,10 @@
 提供任务查询、列表、删除等功能
 """
 import base64
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime
-from app.models.task import TaskResponse, BatchDeleteRequest
+from app.models.task import TaskResponse, BatchDeleteRequest, RetryRequest
 from app.db.mongo import mongo
 from app.services.queue_service import rabbitmq_service
 from app.services.oss_service import oss_service
@@ -199,12 +200,13 @@ async def delete_task(task_id: str):
 
 
 @router.post("/{task_id}/retry", response_model=TaskResponse)
-async def retry_task(task_id: str):
+async def retry_task(task_id: str, request: Optional[RetryRequest] = None):
     """
     重试任务
 
     Args:
         task_id: 任务 ID
+        request: 重试请求配置（可选，用于修改参数）
 
     Returns:
         TaskResponse: 更新后的任务信息
@@ -217,42 +219,71 @@ async def retry_task(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # 2. 更新任务状态为 pending，并清除之前的错误和结果
+    # 2. 准备更新数据
     now = datetime.now()
     update_data = {
         "status": "pending",
-        "error": None,
         "result": None,
         "cached": False,
         "updated_at": now,
         "completed_at": None,
         "node_id": None
     }
+    
+    # 如果提供了新的配置，则更新
+    final_url = task["url"]
+    final_params = task.get("params", {})
+    final_priority = task.get("priority", 1)
+    final_cache = task.get("cache", {"enabled": True, "ttl": 3600})
 
-    mongo.tasks.update_one({"task_id": task_id}, {"$set": update_data})
+    if request:
+        if request.url:
+            update_data["url"] = request.url
+            final_url = request.url
+        if request.params:
+            update_data["params"] = request.params
+            final_params = request.params
+        if request.priority is not None:
+            update_data["priority"] = request.priority
+            final_priority = request.priority
+        if request.cache:
+            update_data["cache"] = request.cache
+            final_cache = request.cache
 
-    # 3. 重新提交到队列
+    # 3. 更新数据库
+    mongo.tasks.update_one(
+        {"task_id": task_id}, 
+        {
+            "$set": update_data,
+            "$unset": {"error": ""}
+        }
+    )
+
+    # 4. 重新提交到队列
     queue_task = {
         "task_id": task_id,
-        "url": task["url"],
-        "params": task["params"],
-        "cache": task.get("cache", {"enabled": True, "ttl": 3600}),
-        "priority": task.get("priority", 1)
+        "url": final_url,
+        "params": final_params,
+        "cache": final_cache,
+        "priority": final_priority
     }
 
     if not rabbitmq_service.publish_task(queue_task):
-        # 如果发布失败，尝试将状态改回失败（但不抛出异常，因为状态更新本身可能失败）
+        # 如果发布失败，尝试将状态改回失败
         mongo.tasks.update_one(
             {"task_id": task_id},
             {"$set": {"status": "failed", "error": {"message": "Failed to re-queue task"}}}
         )
         raise HTTPException(status_code=500, detail="Failed to queue task")
 
-    # 4. 返回更新后的任务信息
+    # 5. 返回更新后的任务信息
     return TaskResponse(
         task_id=task_id,
-        url=task["url"],
+        url=final_url,
         status="pending",
+        params=final_params,
+        priority=final_priority,
+        cache=final_cache,
         created_at=task["created_at"],
         updated_at=now
     )

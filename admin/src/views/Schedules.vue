@@ -181,13 +181,26 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item label="存储位置">
+                  <el-form-item>
+                    <template #label>
+                      <div class="label-with-help">
+                        <span>存储位置</span>
+                        <el-tooltip content="指定任务结果（HTML 源码和页面截图）的存储位置" placement="top">
+                          <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                        </el-tooltip>
+                      </div>
+                    </template>
                     <el-radio-group v-model="form.params.storage_type" size="default">
                       <el-radio-button label="mongo">MongoDB</el-radio-button>
                       <el-radio-button label="oss">OSS 存储</el-radio-button>
                     </el-radio-group>
-                    <div class="form-item-tip" v-if="form.params.storage_type === 'oss'">
-                      请确保已在 <el-link type="primary" :underline="false" @click="router.push('/configs')">系统设置</el-link> 中配置 OSS 凭据
+                    <div class="form-item-tip">
+                      <template v-if="form.params.storage_type === 'oss'">
+                        请确保已在 <el-link type="primary" :underline="false" @click="router.push('/configs')">系统设置</el-link> 中配置 OSS 凭据
+                      </template>
+                      <template v-else>
+                        结果将直接存储在 MongoDB 数据库中
+                      </template>
                     </div>
                   </el-form-item>
                 </el-col>
@@ -276,14 +289,26 @@
               <el-form-item label="解析模式" v-if="form.params">
                 <el-radio-group v-model="form.params.parser" size="default">
                   <el-radio-button label="">不解析</el-radio-button>
-                  <el-radio-button label="gne">智能正文 (GNE)</el-radio-button>
+                  <el-radio-button label="gne">智能解析 (GAE)</el-radio-button>
                   <el-radio-button label="llm">大模型提取 (LLM)</el-radio-button>
                   <el-radio-button label="xpath">自定义规则 (XPath)</el-radio-button>
                 </el-radio-group>
               </el-form-item>
 
               <div v-if="form.params && form.params.parser === 'gne'" class="parser-config-area">
-                <el-alert title="GNE 模式" type="info" :closable="false" show-icon description="适用于新闻、博客等文章类页面，自动提取标题、作者、发布时间、正文和图片。" />
+                <el-form-item label="提取模式">
+                  <el-radio-group v-model="form.params.parser_config.mode" size="small">
+                    <el-radio-button label="detail">详情模式</el-radio-button>
+                    <el-radio-button label="list">列表模式</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+                <el-alert 
+                  :title="form.params.parser_config.mode === 'list' ? 'GAE 列表模式' : 'GAE 详情模式'" 
+                  type="info" 
+                  :closable="false" 
+                  show-icon 
+                  :description="form.params.parser_config.mode === 'list' ? '自动识别并提取新闻、博客列表页中的标题、链接及发布日期。' : '适用于新闻、博客等文章类页面，自动提取标题、作者、发布时间、正文和图片。'" 
+                />
               </div>
 
               <div v-if="form.params && form.params.parser === 'llm'" class="parser-config-area">
@@ -852,6 +877,7 @@ const openCreateDialog = () => {
       },
       parser: '',
       parser_config: {
+        mode: 'detail',
         fields: ['title', 'content']
       },
       proxy: {
@@ -1040,7 +1066,7 @@ const handleSubmit = async () => {
           })
           submitData.params.parser_config = { rules }
         } else if (submitData.params.parser === 'gne') {
-          submitData.params.parser_config = {}
+          submitData.params.parser_config = { mode: submitData.params.parser_config?.mode || 'detail' }
         } else {
           submitData.params.parser_config = null
         }

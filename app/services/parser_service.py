@@ -1,16 +1,17 @@
 """
 HTML 解析服务模块
 
-支持基于 GNE (General News Extractor) 和 LLM (Large Language Model) 的网页内容解析
+支持基于 gerapy-auto-extractor 和 LLM (Large Language Model) 的网页内容解析
 """
 import json
 import logging
 from typing import Dict, Any, Optional, List
 try:
-    from gne import GeneralNewsExtractor
+    from gne import GeneralNewsExtractor, ListPageExtractor
     GNE_AVAILABLE = True
 except ImportError:
     GeneralNewsExtractor = None
+    ListPageExtractor = None
     GNE_AVAILABLE = False
 from openai import AsyncOpenAI
 from lxml import html as lxml_html
@@ -23,7 +24,6 @@ class ParserService:
     """HTML 解析服务"""
 
     def __init__(self):
-        self.gne_extractor = GeneralNewsExtractor() if GNE_AVAILABLE else None
         self.llm_client = None
         self._current_llm_config = {}
 
@@ -65,7 +65,7 @@ class ParserService:
             return {"error": "Empty HTML content"}
 
         if parser_type == "gne":
-            return self._parse_with_gne(html)
+            return self._parse_with_gne(html, config)
         elif parser_type == "llm":
             return await self._parse_with_llm(html, config)
         elif parser_type == "xpath":
@@ -73,14 +73,24 @@ class ParserService:
         else:
             return {"error": f"Unsupported parser type: {parser_type}"}
 
-    def _parse_with_gne(self, html: str) -> Dict[str, Any]:
+    def _parse_with_gne(self, html: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """使用 GNE 解析网页"""
         if not GNE_AVAILABLE:
-            logger.warning("GNE is not installed, skipping GNE extraction")
+            logger.warning("GNE is not installed, skipping extraction")
             return {"error": "GNE is not installed on this node. Please install it or use XPath/LLM parser."}
         try:
-            result = self.gne_extractor.extract(html)
-            return result
+            config = config or {}
+            
+            if config.get("mode") == "list":
+                if not ListPageExtractor:
+                    return {"error": "ListPageExtractor not available in GNE"}
+                extractor = ListPageExtractor()
+                # 列表模式需要传递 feature 参数，这里使用用户配置的 list_xpath
+                feature = config.get("list_xpath") or ""
+                return extractor.extract(html, feature)
+            
+            extractor = GeneralNewsExtractor()
+            return extractor.extract(html)
         except Exception as e:
             logger.error(f"GNE extraction failed: {e}")
             return {"error": f"GNE extraction failed: {str(e)}"}

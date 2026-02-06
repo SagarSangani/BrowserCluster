@@ -12,7 +12,7 @@ import asyncio
 from typing import Optional, Dict, Any, List, Union
 from urllib.parse import urlparse
 
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 from playwright_stealth import Stealth
 from DrissionPage import ChromiumPage, ChromiumOptions
 
@@ -215,7 +215,7 @@ class Scraper:
                 await page.wait_for_timeout(wait_time)
 
             # 获取页面 HTML
-            html = await page.content() if params.get("save_html", True) else ""
+            html = await page.content()
             actual_url = page.url # 获取重定向后的实际 URL
 
             # 计算加载时间
@@ -290,12 +290,16 @@ class Scraper:
 
         finally:
             # 确保关闭页面和上下文
-            if page and context:
-                # 关闭上下文（会自动关闭页面）
-                await context.close()
-            elif page:
-                # 只关闭页面
-                await page.close()
+            try:
+                if page and context:
+                    # 关闭上下文（会自动关闭页面）
+                    await context.close()
+                elif page:
+                    # 只关闭页面
+                    await page.close()
+            except Exception as e:
+                # 忽略关闭时的错误，通常是因为浏览器已经关闭
+                logger.debug(f"Error closing playwright resources: {e}")
 
     async def _scrape_with_drission(
         self,
@@ -371,7 +375,8 @@ class Scraper:
                     logger.warning(f"Selector {selector} not found within timeout")
             
             # 获取内容
-            html = tab.html if params.get("save_html", True) else ""
+            # 即使 save_html 为 False，如果需要解析 (parser 不为空)，也需要获取 HTML
+            html = tab.html if params.get("save_html", True) or params.get("parser") else ""
             title = tab.title
             actual_url = tab.url
             

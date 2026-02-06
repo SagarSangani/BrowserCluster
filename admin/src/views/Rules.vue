@@ -78,7 +78,34 @@
             
             <!-- GNE Config -->
             <div v-if="form.parser_type === 'gne'">
-              <el-alert title="GNE (General News Extractor) 会自动提取网页的正文、标题、发布时间等通用信息，无需额外配置。" type="info" :closable="false" style="margin-bottom: 20px" />
+              <el-form-item label="提取模式">
+                <el-radio-group v-model="form.parser_config.mode" size="small">
+                  <el-radio-button label="detail">详情模式</el-radio-button>
+                  <el-radio-button label="list">列表模式</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+
+              <div v-if="form.parser_config.mode === 'list'" class="mt-4">
+          <el-form-item label="列表项 XPath">
+            <el-input 
+              v-model="form.parser_config.list_xpath" 
+              placeholder="例如: //ul/li[1]/a 或 /html/body/div/ul/li[1]/a"
+              clearable
+            >
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
+            <div class="input-tip">提示：指定列表中任意一个标题元素的 XPath，GNE 将以此为特征自动识别整个列表。</div>
+          </el-form-item>
+        </div>
+
+              <el-alert 
+                :title="form.parser_config.mode === 'list' ? 'GNE 列表模式' : 'GNE 详情模式'" 
+                type="info" 
+                :closable="false" 
+                style="margin-bottom: 20px" 
+                show-icon
+                :description="form.parser_config.mode === 'list' ? '自动识别并提取新闻、博客列表页中的标题、链接及发布日期。' : '适用于新闻、博客等文章类页面，自动提取标题、作者、发布时间、正文和图片。'"
+              />
             </div>
 
             <!-- LLM Config -->
@@ -156,7 +183,7 @@
 <script setup>
 import { ref, onMounted, reactive, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, MagicStick, Connection } from '@element-plus/icons-vue'
+import { Plus, Delete, MagicStick, Connection, Search } from '@element-plus/icons-vue'
 import { getRules, createRule, updateRule, deleteRule } from '@/api'
 
 const rules = ref([])
@@ -187,7 +214,7 @@ const xpathRules = ref([{ field: '', xpath: '' }])
 const form = reactive({
   domain: '',
   parser_type: 'gne',
-  parser_config: {},
+  parser_config: { mode: 'detail' },
   cookies: '',
   description: '',
   is_active: true
@@ -216,7 +243,7 @@ const handleAdd = () => {
   Object.assign(form, {
     domain: '',
     parser_type: 'gne',
-    parser_config: {},
+    parser_config: { mode: 'detail' },
     cookies: '',
     description: '',
     is_active: true

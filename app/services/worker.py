@@ -34,7 +34,7 @@ class Worker:
         """
         self.node_id = node_id or settings.node_id
         self.is_running = False  # 运行状态标志
-        self.active_tasks = set()  # 当前正在处理的任务 ID 集合
+        self.active_tasks = {}  # 当前正在处理的任务 ID -> 任务数据 映射
 
     async def process_task(self, task_data: dict):
         """
@@ -74,7 +74,7 @@ class Worker:
             logger.warning(f"Task {task_id} not found in database, it may have been deleted. Skipping.")
             return
 
-        self.active_tasks.add(task_id)
+        self.active_tasks[task_id] = task_data
 
         try:
             # 更新任务状态为处理中
@@ -87,11 +87,20 @@ class Worker:
             if result["status"] == "success" and params.get("parser"):
                 parser_type = params["parser"]
                 parser_config = params.get("parser_config", {})
-                html = result.get("html", "")
+                
+                # 即使 params["save_html"] 为 False，result["html"] 在 scraper 阶段也是存在的
+                # scraper 保证了 result["html"] 包含内容，解析服务需要这个内容
+                html_content = result.get("html", "")
+                
+                if not html_content:
+                    logger.warning(f"Task {task_id} successful but HTML content is empty, parser might fail")
                 
                 logger.info(f"Parsing content for task {task_id} using {parser_type}")
-                parsed_data = await parser_service.parse(html, parser_type, parser_config)
+                parsed_data = await parser_service.parse(html_content, parser_type, parser_config)
                 result["parsed_data"] = parsed_data
+
+            # 这里重新判断是否需要保存html
+            result["html"] = result["html"] if params.get("save_html", True) else ""
 
             # 检查 Worker 是否在执行过程中被停止
             if not self.is_running:
@@ -131,7 +140,7 @@ class Worker:
                 await self._update_task_failed(task_id, {"message": str(e)})
             logger.error(f"Task {task_id} error: {e}", exc_info=True)
         finally:
-            self.active_tasks.discard(task_id)
+            self.active_tasks.pop(task_id, None)
 
     async def _update_task_status(self, task_id: str, status: str, node_id: str = None):
         """
@@ -149,6 +158,9 @@ class Worker:
                     "status": status,
                     "node_id": node_id,
                     "updated_at": datetime.now()
+                },
+                "$unset": {
+                    "error": ""
                 }
             }
         )
@@ -205,6 +217,9 @@ class Worker:
                     "result": result,
                     "updated_at": datetime.now(),
                     "completed_at": datetime.now()
+                },
+                "$unset": {
+                    "error": ""
                 }
             }
         )
@@ -276,6 +291,10 @@ class Worker:
         finally:
             heartbeat_task.cancel()
             idle_check_task.cancel()
+            try:
+                await asyncio.gather(heartbeat_task, idle_check_task, return_exceptions=True)
+            except:
+                pass
             await self.stop()
 
     async def _browser_idle_check_loop(self):
@@ -347,31 +366,47 @@ class Worker:
         self.is_running = False
         logger.info(f"Worker {self.node_id} stopping...")
 
-        # 处理正在执行的任务
+        # 立即处理正在执行的任务，将其重置为待处理状态，并重新发布到消息队列
         if self.active_tasks:
-            task_ids = list(self.active_tasks)
-            logger.info(f"Worker {self.node_id} has {len(task_ids)} active tasks. Resetting status...")
+            task_items = list(self.active_tasks.items())
+            task_ids = [item[0] for item in task_items]
+            logger.info(f"Worker {self.node_id} has {len(task_ids)} active tasks. Resetting status and republishing...")
             try:
+                # 1. 更新数据库状态为 pending
                 mongo.tasks.update_many(
                     {"task_id": {"$in": task_ids}},
                     {
                         "$set": {
                             "status": "pending",
                             "node_id": None,
-                            "updated_at": datetime.now(),
-                            "error": {"message": "Node stopped during processing"}
+                            "updated_at": datetime.now()
+                        },
+                        "$unset": {
+                            "error": ""
                         }
                     }
                 )
-                logger.info(f"Successfully reset {len(task_ids)} tasks to pending")
-                self.active_tasks.clear()
+                
+                # 2. 重新发布任务消息到 RabbitMQ
+                for task_id, task_data in task_items:
+                    success = rabbitmq_service.publish_task(task_data)
+                    if success:
+                        logger.info(f"Task {task_id} successfully republished to RabbitMQ")
+                    else:
+                        logger.error(f"Failed to republish task {task_id} to RabbitMQ")
+
+                logger.info(f"Successfully processed {len(task_ids)} tasks for rollback")
+                # 不主动清空 active_tasks，由各协程的 finally 块自行清理，
+                # 但由于 is_running 已为 False，后续的数据库更新操作会被跳过
             except Exception as e:
-                logger.error(f"Error resetting active tasks: {e}")
+                logger.error(f"Error during tasks rollback: {e}")
 
         # 关闭本线程的浏览器和 Playwright 实例
         try:
             await browser_manager.close_playwright()
-            logger.info(f"Worker {self.node_id} closed browser and Playwright")
+            # 同时也关闭 DrissionPage 实例
+            await asyncio.to_thread(drission_manager.close_browser)
+            logger.info(f"Worker {self.node_id} closed browser and Playwright/DrissionPage")
         except Exception as e:
             logger.error(f"Error closing browser for {self.node_id}: {e}")
 

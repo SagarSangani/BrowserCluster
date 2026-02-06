@@ -116,7 +116,9 @@ import { Plus, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getNodes, createNode, updateNode, deleteNode, startNode, stopNode } from '../api'
 import dayjs from 'dayjs'
+import { useStatsStore } from '../stores/stats'
 
+const statsStore = useStatsStore()
 const nodes = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -186,6 +188,7 @@ const handleSubmit = async () => {
         }
         dialogVisible.value = false
         fetchNodes()
+        statsStore.fetchStats()
       } catch (error) {
         ElMessage.error(error.response?.data?.detail || '操作失败')
       } finally {
@@ -200,6 +203,7 @@ const handleStart = async (row) => {
     await startNode(row.node_id)
     ElMessage.success(`节点 ${row.node_id} 启动成功`)
     fetchNodes()
+    statsStore.fetchStats()
   } catch (error) {
     ElMessage.error('启动失败')
   }
@@ -210,6 +214,7 @@ const handleStop = async (row) => {
     await stopNode(row.node_id)
     ElMessage.success(`节点 ${row.node_id} 已停止`)
     fetchNodes()
+    statsStore.fetchStats()
   } catch (error) {
     ElMessage.error('停止失败')
   }
@@ -301,6 +306,7 @@ const handleDelete = (row) => {
       await deleteNode(row.node_id)
       ElMessage.success('删除成功')
       fetchNodes()
+      statsStore.fetchStats()
     } catch (error) {
       ElMessage.error('删除失败')
     }

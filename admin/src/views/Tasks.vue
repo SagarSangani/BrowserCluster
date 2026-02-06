@@ -232,7 +232,7 @@
     <!-- 新建任务对话框 -->
     <el-dialog 
       v-model="showScrapeDialog" 
-      title="新建抓取任务" 
+      :title="isRetryEdit ? '编辑并重试任务' : '新建抓取任务'" 
       width="800px" 
       destroy-on-close 
       top="8vh"
@@ -251,11 +251,14 @@
             
             <div class="tab-content">
               <div class="section-header">
-                <div class="header-extra">
+                <div class="header-extra" v-if="!isRetryEdit">
                   <el-radio-group v-model="submitMode" size="small">
                     <el-radio-button label="single">单条任务</el-radio-button>
                     <el-radio-button label="batch">批量导入</el-radio-button>
                   </el-radio-group>
+                </div>
+                <div class="header-extra" v-else>
+                  <el-tag type="warning" effect="dark">重试模式：仅支持单条任务编辑</el-tag>
                 </div>
               </div>
 
@@ -328,13 +331,26 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item label="存储位置">
+                  <el-form-item>
+                    <template #label>
+                      <div class="label-with-help">
+                        <span>存储位置</span>
+                        <el-tooltip content="指定任务结果（HTML 源码和页面截图）的存储位置" placement="top">
+                          <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                        </el-tooltip>
+                      </div>
+                    </template>
                     <el-radio-group v-model="scrapeForm.params.storage_type" size="default">
                       <el-radio-button label="mongo">MongoDB</el-radio-button>
                       <el-radio-button label="oss">OSS 存储</el-radio-button>
                     </el-radio-group>
-                    <div class="form-item-tip" v-if="scrapeForm.params.storage_type === 'oss'">
-                      请确保已在 <el-link type="primary" :underline="false" href="/configs">系统设置</el-link> 中配置 OSS 凭据
+                    <div class="form-item-tip">
+                      <template v-if="scrapeForm.params.storage_type === 'oss'">
+                        请确保已在 <el-link type="primary" :underline="false" href="/configs">系统设置</el-link> 中配置 OSS 凭据
+                      </template>
+                      <template v-else>
+                        结果将直接存储在 MongoDB 数据库中
+                      </template>
                     </div>
                   </el-form-item>
                 </el-col>
@@ -404,14 +420,40 @@
               <el-form-item label="解析模式">
                 <el-radio-group v-model="scrapeForm.params.parser" size="default">
                   <el-radio-button label="">不解析</el-radio-button>
-                  <el-radio-button label="gne">智能正文 (GNE)</el-radio-button>
+                  <el-radio-button label="gne">智能解析 (GNE)</el-radio-button>
                   <el-radio-button label="llm">大模型提取 (LLM)</el-radio-button>
                   <el-radio-button label="xpath">自定义规则 (XPath)</el-radio-button>
                 </el-radio-group>
               </el-form-item>
 
               <div v-if="scrapeForm.params.parser === 'gne'" class="parser-config-area">
-                <el-alert title="GNE 模式" type="info" :closable="false" show-icon description="适用于新闻、博客等文章类页面，自动提取标题、作者、发布时间、正文和图片。" />
+                <el-form-item label="提取模式">
+                  <el-radio-group v-model="scrapeForm.params.parser_config.mode" size="small">
+                    <el-radio-button label="detail">详情模式</el-radio-button>
+                    <el-radio-button label="list">列表模式</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+
+                <div v-if="scrapeForm.params.parser_config.mode === 'list'" class="mt-4">
+                  <el-form-item label="列表项 XPath" required>
+            <el-input 
+              v-model="scrapeForm.params.parser_config.list_xpath" 
+              placeholder="例如: //ul/li[1]/a 或 /html/body/div/ul/li[1]/a"
+              clearable
+            >
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
+            <div class="input-tip text-danger">必填：指定列表中任意一个标题元素的 XPath，GNE 将以此为特征自动识别整个列表。</div>
+          </el-form-item>
+                </div>
+
+                <el-alert 
+                  :title="scrapeForm.params.parser_config.mode === 'list' ? 'GNE 列表模式' : 'GNE 详情模式'" 
+                  type="info" 
+                  :closable="false" 
+                  show-icon 
+                  :description="scrapeForm.params.parser_config.mode === 'list' ? '自动识别并提取新闻、博客列表页中的标题、链接及发布日期。' : '适用于新闻、博客等文章类页面，自动提取标题、作者、发布时间、正文和图片。'" 
+                />
               </div>
 
               <div v-if="scrapeForm.params.parser === 'llm'" class="parser-config-area">
@@ -697,14 +739,55 @@
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="存储位置">
-                <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="default">
-                  {{ currentTask.params?.storage_type === 'oss' ? 'OSS 对象存储' : 'MongoDB 数据库' }}
-                </el-tag>
+                <div class="storage-info-cell">
+                  <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="default">
+                    {{ currentTask.params?.storage_type === 'oss' ? 'OSS 对象存储' : 'MongoDB 数据库' }}
+                  </el-tag>
+                  <el-tooltip placement="top">
+                    <template #content>
+                      {{ currentTask.params?.storage_type === 'oss' ? '该任务的 HTML 源码和截图存储在云端 OSS，数据库仅保留元数据。' : '该任务的所有数据（包括 HTML 源码和截图）均存储在本地 MongoDB 数据库中。' }}
+                    </template>
+                    <el-icon class="help-icon-inline"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
               </el-descriptions-item>
               <el-descriptions-item label="保存 HTML">
                 <el-tag :type="currentTask.params?.save_html !== false ? 'success' : 'info'" size="default">
                   {{ currentTask.params?.save_html !== false ? '是' : '否' }}
                 </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="解析引擎">
+                <el-tag :type="currentTask.params?.parser ? 'success' : 'info'" size="default">
+                  {{ currentTask.params?.parser || '不解析' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="解析模式">
+                <el-tag type="warning" size="default" v-if="currentTask.params?.parser === 'gne'">
+                  {{ currentTask.params?.parser_config?.mode === 'list' ? '列表模式' : '详情模式' }}
+                </el-tag>
+                <span v-else>-</span>
+              </el-descriptions-item>
+
+              <el-descriptions-item label="解析规则" :span="2" v-if="currentTask.params?.parser">
+                <template v-if="currentTask.params.parser === 'gne' && currentTask.params.parser_config?.mode === 'list'">
+                  <el-tag size="small" type="danger" class="mr-2">XPath:</el-tag>
+                  <code>{{ currentTask.params.parser_config.list_xpath || '-' }}</code>
+                </template>
+                <template v-else-if="currentTask.params.parser === 'xpath'">
+                  <div class="rule-tags">
+                    <el-tag v-for="(path, field) in currentTask.params.parser_config?.rules" :key="field" size="small" class="mr-2 mb-1">
+                      {{ field }}: {{ path }}
+                    </el-tag>
+                  </div>
+                </template>
+                <template v-else-if="currentTask.params.parser === 'llm'">
+                  <div class="rule-tags">
+                    <el-tag v-for="field in currentTask.params.parser_config?.fields" :key="field" size="small" class="mr-2 mb-1">
+                      {{ field }}
+                    </el-tag>
+                  </div>
+                </template>
+                <span v-else>自动识别</span>
               </el-descriptions-item>
               
               <el-descriptions-item label="OSS HTML 路径" :span="2" v-if="currentTask.result?.oss_html">
@@ -774,7 +857,7 @@
           </el-tab-pane>
 
           <el-tab-pane label="截图预览" name="screenshot" v-if="currentTask.status === 'success' && (currentTask.params?.screenshot || currentTask.result?.oss_screenshot)">
-            <div class="screenshot-container" v-loading="!currentTask.result?.screenshot">
+            <div class="screenshot-container" v-loading="loadingScreenshot">
               <template v-if="currentTask.result?.screenshot">
                 <el-image 
                   :src="currentTask.result.screenshot.startsWith('http') ? currentTask.result.screenshot : 'data:image/png;base64,' + currentTask.result.screenshot" 
@@ -886,9 +969,9 @@ const confirmBatchDelete = () => {
       buttonSize: 'default'
     }
   ).then(async () => {
-    try {
-      loading.value = true
-      await deleteTasksBatch(taskIds)
+      try {
+        loading.value = true
+        await deleteTasksBatch(taskIds)
       ElMessage.success(`成功删除 ${taskIds.length} 个任务`)
       selectedTasks.value = []
       loadTasks()
@@ -909,6 +992,8 @@ const resetFilter = () => {
 }
 
 const showScrapeDialog = ref(false)
+const isRetryEdit = ref(false)
+const retryTaskId = ref('')
 const showTaskDialog = ref(false)
 const showApiConfigDialog = ref(false)
 const apiConfigJson = ref('')
@@ -917,6 +1002,7 @@ const matchedRules = ref([])
 const matchedCookies = ref(false)
 let lastCheckedDomain = ''
 const loadingHtml = ref(false)
+const loadingScreenshot = ref(false)
 
 const getParserTypeTag = (type) => {
   const map = {
@@ -988,11 +1074,13 @@ watch(activeConfigTab, async (newTab) => {
 // 打开对话框的便捷方法
 const openSingleScrapeDialog = () => {
   submitMode.value = 'single'
+  resetForm()
   showScrapeDialog.value = true
 }
 
 const openBatchScrapeDialog = () => {
   submitMode.value = 'batch'
+  resetForm()
   showScrapeDialog.value = true
 }
 
@@ -1124,6 +1212,7 @@ const scrapeForm = ref({
       save_html: true,
   parser: '',
   parser_config: {
+    mode: 'detail',
     fields: ['title', 'content']
   },
   intercept_apis: [],
@@ -1243,18 +1332,79 @@ const deleteTask = async (taskId) => {
 
 const confirmRetry = (row) => {
   ElMessageBox.confirm(
-    `确定要重新执行任务吗？\nURL: ${row.url}`,
-    '重试确认',
+    `请选择重试方式：\nURL: ${row.url}`,
+    '重试选项',
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      confirmButtonText: '直接重试',
+      cancelButtonText: '编辑配置',
+      distinguishCancelAndClose: true,
       type: 'warning',
       icon: WarningFilled,
       buttonSize: 'default'
     }
   ).then(() => {
     handleRetry(row.task_id)
-  }).catch(() => {})
+  }).catch((action) => {
+    if (action === 'cancel') {
+      handleEditAndRetry(row)
+    }
+  })
+}
+
+const handleEditAndRetry = (row) => {
+  isRetryEdit.value = true
+  retryTaskId.value = row.task_id
+  submitMode.value = 'single'
+  activeConfigTab.value = 'basic'
+  
+  // 基础配置
+  scrapeForm.value.url = row.url
+  scrapeForm.value.priority = row.priority || 5
+  
+  // 深度拷贝 params 和 cache，避免引用问题
+  const params = JSON.parse(JSON.stringify(row.params || {}))
+  const cache = JSON.parse(JSON.stringify(row.cache || { enabled: true, ttl: 3600 }))
+  
+  scrapeForm.value.cache = cache
+  
+  // 确保所有必要的参数结构都存在
+  scrapeForm.value.params = {
+    engine: params.engine || 'playwright',
+    wait_for: params.wait_for || 'networkidle',
+    wait_time: params.wait_time || 3000,
+    timeout: params.timeout || 30000,
+    selector: params.selector || '',
+    screenshot: params.screenshot !== undefined ? params.screenshot : true,
+    is_fullscreen: params.is_fullscreen || false,
+    block_images: params.block_images || false,
+    block_media: params.block_media || false,
+    user_agent: params.user_agent || '',
+    viewport: params.viewport || { width: 1920, height: 1080 },
+    proxy: params.proxy || { server: '', username: '', password: '' },
+    cookies: (function() {
+      const c = params.cookies;
+      if (!c) return '';
+      if (typeof c === 'object') return JSON.stringify(c);
+      return String(c);
+    })(),
+    stealth: params.stealth !== undefined ? params.stealth : true,
+    storage_type: 'mongo',
+      save_html: true,
+    parser: params.parser || '',
+    parser_config: params.parser_config || { mode: 'detail', fields: ['title', 'content'] },
+    intercept_apis: params.intercept_apis || [],
+    intercept_continue: params.intercept_continue || false
+  }
+
+  // 特殊处理解析器配置的 UI 绑定
+  if (scrapeForm.value.params.parser === 'llm') {
+    selectedLlmFields.value = scrapeForm.value.params.parser_config.fields || []
+  } else if (scrapeForm.value.params.parser === 'xpath') {
+    const rules = scrapeForm.value.params.parser_config.rules || {}
+    xpathRules.value = Object.entries(rules).map(([field, path]) => ({ field, path }))
+  }
+
+  showScrapeDialog.value = true
 }
 
 const handleRetry = async (taskId) => {
@@ -1310,6 +1460,7 @@ watch(activeTab, async (newTab) => {
       loadingHtml.value = false
     }
   } else if (newTab === 'screenshot' && !result.screenshot) {
+    loadingScreenshot.value = true
     try {
       // 后端 getTask API 会自动从 OSS 加载内容并返回在 result.screenshot 中
       const data = await getTask(taskId, { include_screenshot: true, include_html: false })
@@ -1319,6 +1470,8 @@ watch(activeTab, async (newTab) => {
     } catch (e) {
       console.error('加载截图失败:', e)
       ElMessage.error('加载截图失败')
+    } finally {
+      loadingScreenshot.value = false
     }
   }
 })
@@ -1329,6 +1482,15 @@ const submitTask = async () => {
     ElMessage.warning('请输入目标 URL')
     return
   }
+  
+  // GNE 列表模式必填验证
+  if (scrapeForm.value.params.parser === 'gne' && 
+      scrapeForm.value.params.parser_config?.mode === 'list' && 
+      !scrapeForm.value.params.parser_config?.list_xpath) {
+    ElMessage.warning('GNE 列表模式下，列表项 XPath 为必填项')
+    return
+  }
+
   if (submitMode.value === 'batch' && batchUrlCount.value === 0) {
     ElMessage.warning('请提供有效的 URL 列表')
     return
@@ -1354,7 +1516,12 @@ const submitTask = async () => {
         })
         data.params.parser_config = { rules }
       } else if (data.params.parser === 'gne') {
-        data.params.parser_config = {}
+        const mode = data.params.parser_config?.mode || 'detail'
+        const list_xpath = data.params.parser_config?.list_xpath
+        data.params.parser_config = { mode }
+        if (mode === 'list' && list_xpath) {
+          data.params.parser_config.list_xpath = list_xpath
+        }
       } else {
         data.params.parser_config = null
       }
@@ -1392,12 +1559,24 @@ const submitTask = async () => {
 
     if (submitMode.value === 'single') {
       const submitData = processParams(baseConfig)
-      scrapeAsync(submitData).then(() => {
-        ElMessage.success('任务提交成功 (异步)')
-        loadTasks()
-      }).catch(error => {
-        ElMessage.error('提交失败: ' + (error.response?.data?.detail || error.message))
-      })
+      
+      if (isRetryEdit.value) {
+        // 编辑并重试模式
+        retryTask(retryTaskId.value, submitData).then(() => {
+          ElMessage.success('任务已更新并重新提交')
+          loadTasks()
+        }).catch(error => {
+          ElMessage.error('重试失败: ' + (error.response?.data?.detail || error.message))
+        })
+      } else {
+        // 新建异步任务模式
+        scrapeAsync(submitData).then(() => {
+          ElMessage.success('任务提交成功 (异步)')
+          loadTasks()
+        }).catch(error => {
+          ElMessage.error('提交失败: ' + (error.response?.data?.detail || error.message))
+        })
+      }
     } else {
       // 批量处理
       const urls = batchMode.value === 'text' 
@@ -1430,6 +1609,8 @@ const submitTask = async () => {
 }
 
 const resetForm = () => {
+  isRetryEdit.value = false
+  retryTaskId.value = ''
   scrapeForm.value = {
     url: '',
     params: {
@@ -1453,8 +1634,10 @@ const resetForm = () => {
       },
       cookies: '',
       parser: '',
-      parser_config: { fields: ['title', 'content'] },
+      parser_config: { mode: 'detail', fields: ['title', 'content'] },
       stealth: true,
+      storage_type: 'mongo',
+      save_html: true,
       intercept_apis: [],
       intercept_continue: false
     },
@@ -2610,5 +2793,21 @@ onMounted(() => {
   padding: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.label-with-help, .storage-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.help-icon, .help-icon-inline {
+  font-size: 14px;
+  color: #909399;
+  cursor: help;
+}
+
+.help-icon-inline {
+  font-size: 13px;
 }
 </style>

@@ -72,7 +72,7 @@ class ScrapedResult(BaseModel):
     storage_type: str = "mongo"  # 存储位置: mongo, oss
     metadata: Optional[TaskMetadata] = None  # 元数据
     intercepted_apis: Optional[Dict[str, List[Dict[str, Any]]]] = None  # 拦截到的接口数据 (键名中的 . 和 $ 已被转义为 _)
-    parsed_data: Optional[Dict[str, Any]] = None  # HTML 解析后的结构化数据
+    parsed_data: Optional[Union[Dict[str, Any], List[Any]]] = None  # HTML 解析后的结构化数据
 
 
 class TaskError(BaseModel):
@@ -87,6 +87,14 @@ class TaskStatus(str, Enum):
     PROCESSING = "processing"  # 处理中
     SUCCESS = "success"  # 成功
     FAILED = "failed"  # 失败
+
+
+class RetryRequest(BaseModel):
+    """重试请求模型"""
+    url: Optional[str] = None  # 可选：修改目标 URL
+    params: Optional[Dict[str, Any]] = None  # 可选：修改抓取参数
+    priority: Optional[int] = None  # 可选：修改优先级
+    cache: Optional[Dict[str, Any]] = None  # 可选：修改缓存配置
 
 
 class TaskModel(BaseModel):

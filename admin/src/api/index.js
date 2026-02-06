@@ -129,8 +129,8 @@ export const deleteTasksBatch = async (taskIds) => {
   return response.data
 }
 
-export const retryTask = async (taskId) => {
-  const response = await api.post(`/tasks/${taskId}/retry`)
+export const retryTask = async (taskId, data = null) => {
+  const response = await api.post(`/tasks/${taskId}/retry`, data)
   return response.data
 }
 

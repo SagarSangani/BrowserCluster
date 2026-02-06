@@ -152,6 +152,19 @@
                 <el-tag :type="currentTask.cached ? 'success' : 'info'">{{ currentTask.cached ? '缓存命中' : '实时抓取' }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="节点 ID">{{ currentTask.node_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="存储位置">
+                <div class="storage-info-cell">
+                  <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="small">
+                    {{ currentTask.params?.storage_type === 'oss' ? 'OSS 对象存储' : 'MongoDB 数据库' }}
+                  </el-tag>
+                  <el-tooltip placement="top">
+                    <template #content>
+                      {{ currentTask.params?.storage_type === 'oss' ? '该任务的 HTML 源码和截图存储在云端 OSS，数据库仅保留元数据。' : '该任务的所有数据（包括 HTML 源码和截图）均存储在本地 MongoDB 数据库中。' }}
+                    </template>
+                    <el-icon class="help-icon-inline"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+              </el-descriptions-item>
             </el-descriptions>
           </el-tab-pane>
 
@@ -502,5 +515,17 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+}
+
+.storage-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.help-icon-inline {
+  font-size: 13px;
+  color: #909399;
+  cursor: help;
 }
 </style>
