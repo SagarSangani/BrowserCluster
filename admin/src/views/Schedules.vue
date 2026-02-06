@@ -82,6 +82,9 @@
               <el-tag v-else-if="row.schedule_type === 'cron'" type="warning" size="small">
                 Cron: {{ row.cron }}
               </el-tag>
+              <el-tag v-else-if="row.schedule_type === 'once'" type="success" size="small">
+                定时: {{ row.once_time }}
+              </el-tag>
             </div>
           </template>
         </el-table-column>
@@ -302,6 +305,27 @@
                     <el-radio-button label="list">列表模式</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
+
+                <el-form-item 
+                  v-if="form.params.parser_config.mode === 'list'" 
+                  label="列表项 XPath" 
+                  prop="params.parser_config.list_xpath"
+                  required
+                >
+                  <el-input 
+                    v-model="form.params.parser_config.list_xpath" 
+                    placeholder="例如: /html/body/div/div/ul/li[1]/a"
+                  >
+                    <template #prefix>
+                      <el-icon><Search /></el-icon>
+                    </template>
+                  </el-input>
+                  <div class="input-tip">
+                    <el-icon><InfoFilled /></el-icon>
+                    GNE 列表模式必须指定一个代表性的列表项标题 XPath
+                  </div>
+                </el-form-item>
+
                 <el-alert 
                   :title="form.params.parser_config.mode === 'list' ? 'GAE 列表模式' : 'GAE 详情模式'" 
                   type="info" 
@@ -546,6 +570,7 @@
                   <el-radio-group v-model="form.schedule_type" size="default">
                     <el-radio-button label="interval">间隔执行</el-radio-button>
                     <el-radio-button label="cron">Cron 表达式</el-radio-button>
+                    <el-radio-button label="once">指定时间</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
 
@@ -562,7 +587,15 @@
                     <div class="input-tip">系统将按此频率自动触发任务</div>
                   </el-form-item>
 
-                  <el-form-item v-if="form.schedule_type === 'cron'" label="Cron 表达式" prop="cron">
+                  <el-form-item v-if="form.schedule_type === 'cron'" prop="cron">
+                    <template #label>
+                      <div class="label-with-help">
+                        <span>Cron 表达式</span>
+                        <el-tooltip content="点击右侧『常用示例』查看各字段含义" placement="top">
+                          <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                        </el-tooltip>
+                      </div>
+                    </template>
                     <el-input v-model="form.cron" placeholder="*/5 * * * * (每 5 分钟执行一次)">
                       <template #append>
                         <el-button @click="openCronHelper">常用示例</el-button>
@@ -570,8 +603,19 @@
                     </el-input>
                     <div class="input-tip">
                       <el-icon><InfoFilled /></el-icon>
-                      标准 5 位或 6 位 Cron 表达式，例如 <code>0 0 * * *</code> 表示每天凌晨执行
+                      支持 5 位 (分 时 日 月 周) 或 6 位 (秒 分 时 日 月 周) 表达式
                     </div>
+                  </el-form-item>
+
+                  <el-form-item v-if="form.schedule_type === 'once'" label="执行时间" prop="once_time">
+                    <el-date-picker
+                      v-model="form.once_time"
+                      type="datetime"
+                      placeholder="选择具体执行时间"
+                      style="width: 100%"
+                      value-format="YYYY-MM-DD HH:mm:ss"
+                    />
+                    <div class="input-tip">任务将在设定的时间点执行一次</div>
                   </el-form-item>
                 </div>
               </div>
@@ -630,6 +674,7 @@ const form = ref({
   schedule_type: 'interval',
   interval: 3600,
   cron: '',
+  once_time: '',
   priority: 5,
   params: {
     engine: 'playwright',
@@ -646,6 +691,8 @@ const form = ref({
     },
     parser: '',
     parser_config: {
+      mode: 'detail',
+      list_xpath: '',
       fields: ['title', 'content']
     },
     proxy: {
@@ -670,7 +717,8 @@ const rules = {
   name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
   url: [{ required: true, message: '请输入目标 URL', trigger: 'blur' }],
   interval: [{ required: true, message: '请输入执行间隔', trigger: 'blur' }],
-  cron: [{ required: true, message: '请输入 Cron 表达式', trigger: 'blur' }]
+  cron: [{ required: true, message: '请输入 Cron 表达式', trigger: 'blur' }],
+  once_time: [{ required: true, message: '请选择执行时间', trigger: 'change' }]
 }
 
 const intervalValue = ref(60)
@@ -810,14 +858,34 @@ const removeXpathRule = (index) => xpathRules.value.splice(index, 1)
 
 const openCronHelper = () => {
   ElMessageBox.alert(
-    `<ul>
-      <li><code>0 0 * * *</code>: 每天凌晨</li>
-      <li><code>*/5 * * * *</code>: 每 5 分钟</li>
-      <li><code>0 9 * * 1-5</code>: 工作日早上 9 点</li>
-      <li><code>0 0 1 * *</code>: 每月 1 号凌晨</li>
-    </ul>`,
-    '常用 Cron 示例',
-    { dangerouslyUseHTMLString: true }
+    `<div class="cron-helper-content">
+      <p><strong>常用示例：</strong></p>
+      <ul class="mb-4">
+        <li><code>0 0 * * *</code>: 每天凌晨</li>
+        <li><code>*/5 * * * *</code>: 每 5 分钟</li>
+        <li><code>0 9 * * 1-5</code>: 工作日早上 9 点</li>
+        <li><code>0 0 1 * *</code>: 每月 1 号凌晨</li>
+      </ul>
+      <p><strong>字段含义：</strong></p>
+      <table class="cron-table">
+        <thead>
+          <tr><th>位置</th><th>含义</th><th>取值范围</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>分钟</td><td>0-59</td></tr>
+          <tr><td>2</td><td>小时</td><td>0-23</td></tr>
+          <tr><td>3</td><td>日期</td><td>1-31</td></tr>
+          <tr><td>4</td><td>月份</td><td>1-12</td></tr>
+          <tr><td>5</td><td>星期</td><td>0-6 (周日为0)</td></tr>
+        </tbody>
+      </table>
+      <p class="mt-2 text-xs text-gray-500">* 部分系统支持 6 位格式，第 1 位为“秒”。</p>
+    </div>`,
+    'Cron 表达式助手',
+    { 
+      dangerouslyUseHTMLString: true,
+      customClass: 'cron-helper-dialog'
+    }
   )
 }
 
@@ -861,6 +929,7 @@ const openCreateDialog = () => {
     schedule_type: 'interval',
     interval: 3600,
     cron: '',
+    once_time: '',
     priority: 5,
     params: {
       engine: 'playwright',
@@ -878,6 +947,7 @@ const openCreateDialog = () => {
       parser: '',
       parser_config: {
         mode: 'detail',
+        list_xpath: '',
         fields: ['title', 'content']
       },
       proxy: {
@@ -913,6 +983,10 @@ const openCreateDialog = () => {
 const handleEdit = (row) => {
   isEdit.value = true
   form.value = JSON.parse(JSON.stringify(row))
+  
+  if (form.value.once_time === undefined) {
+    form.value.once_time = ''
+  }
   
   // 确保 engine 参数存在 (兼容旧数据)
   if (!form.value.params) {
@@ -998,6 +1072,13 @@ const handleEdit = (row) => {
       proxy: { server: '', username: '', password: '' }
     }
     
+    if (!form.value.params.parser_config) {
+      form.value.params.parser_config = { mode: 'detail', list_xpath: '', fields: ['title', 'content'] }
+    } else {
+      if (!form.value.params.parser_config.mode) form.value.params.parser_config.mode = 'detail'
+      if (form.value.params.parser_config.list_xpath === undefined) form.value.params.parser_config.list_xpath = ''
+    }
+    
     Object.keys(defaultParams).forEach(key => {
       if (form.value.params[key] === undefined) {
         form.value.params[key] = defaultParams[key]
@@ -1047,14 +1128,24 @@ const handleSubmit = async () => {
     if (valid) {
       submitting.value = true
       try {
-        // 计算间隔秒数
-        let totalSeconds = intervalValue.value
-        if (intervalUnit.value === 'm') totalSeconds *= 60
-        else if (intervalUnit.value === 'h') totalSeconds *= 3600
-        else if (intervalUnit.value === 'd') totalSeconds *= 86400
-        
         const submitData = JSON.parse(JSON.stringify(form.value))
-        submitData.interval = totalSeconds
+        
+        // 根据调度类型清理数据
+        if (submitData.schedule_type === 'interval') {
+          let totalSeconds = intervalValue.value
+          if (intervalUnit.value === 'm') totalSeconds *= 60
+          else if (intervalUnit.value === 'h') totalSeconds *= 3600
+          else if (intervalUnit.value === 'd') totalSeconds *= 86400
+          submitData.interval = totalSeconds
+          submitData.cron = null
+          submitData.once_time = null
+        } else if (submitData.schedule_type === 'cron') {
+          submitData.interval = null
+          submitData.once_time = null
+        } else if (submitData.schedule_type === 'once') {
+          submitData.interval = null
+          submitData.cron = null
+        }
 
         // 处理解析配置
         if (submitData.params.parser === 'llm') {
@@ -1066,7 +1157,16 @@ const handleSubmit = async () => {
           })
           submitData.params.parser_config = { rules }
         } else if (submitData.params.parser === 'gne') {
-          submitData.params.parser_config = { mode: submitData.params.parser_config?.mode || 'detail' }
+          const mode = submitData.params.parser_config?.mode || 'detail'
+          const list_xpath = submitData.params.parser_config?.list_xpath || ''
+          
+          if (mode === 'list' && !list_xpath) {
+            ElMessage.warning('GNE 列表模式下，列表项 XPath 为必填项')
+            submitting.value = false
+            return
+          }
+          
+          submitData.params.parser_config = { mode, list_xpath }
         } else {
           submitData.params.parser_config = null
         }
@@ -1462,6 +1562,31 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.xpath-rules-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.xpath-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #fff;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.xpath-rule-row:last-child {
+  margin-bottom: 0;
+}
+
 .parser-config-area {
   margin-top: 20px;
   padding: 16px;
@@ -1471,9 +1596,17 @@ onMounted(() => {
 }
 
 .label-with-help {
-  display: flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+:deep(.el-form-item__label) {
+  display: inline-flex !important;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .help-icon {
@@ -1556,4 +1689,50 @@ onMounted(() => {
 
 .mt-4 { margin-top: 16px; }
 .mr-2 { margin-right: 8px; }
+
+/* Cron Helper Styles */
+:global(.cron-helper-dialog) {
+  max-width: 450px !important;
+}
+
+:global(.cron-helper-content) {
+  line-height: 1.6;
+}
+
+:global(.cron-table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+:global(.cron-table th),
+:global(.cron-table td) {
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: left;
+}
+
+:global(.cron-table th) {
+  background-color: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+}
+
+:global(.cron-table td) {
+  color: #1e293b;
+}
+
+:global(.cron-helper-content code) {
+  background-color: #f1f5f9;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #ef4444;
+}
+
+.mb-4 { margin-bottom: 1rem; }
+.mt-2 { margin-top: 0.5rem; }
+.text-xs { font-size: 0.75rem; }
+.text-gray-500 { color: #6b7280; }
 </style>

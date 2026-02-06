@@ -25,7 +25,9 @@
     - 后端自动代理 OSS 内容，解决前端直接访问的跨域及权限问题。
 - **自动化调度**：内置定时任务引擎，支持 Interval 和 Cron 表达式，实现周期性数据采集。
 - **多模式解析提取**：集成多种结构化数据提取技术，适配不同复杂度的网页：
-    - **智能通用解析 (GNE)**：基于正文抽取算法，无需配置规则即可自动提取新闻类网站的标题、正文及发布时间。
+    - **智能通用解析 (GNE)**：基于正文抽取算法，支持两种提取模式：
+        - **详情模式 (Detail)**：自动提取新闻类网站的标题、正文、发布时间及作者。
+        - **列表模式 (List)**：自动识别并提取新闻列表页中的标题、链接及发布日期。
     - **精准规则解析 (XPath/CSS)**：支持可视化配置 XPath 和 CSS 选择器，针对电商、列表页等结构化页面实现像素级精准提取。
     - **大模型智能解析 (LLM)**：结合 OpenAI/DeepSeek 等大语言模型，通过自然语言描述所需字段，零代码实现复杂网页的语义化提取。
 - **可视化管理**：提供基于 Vue 3 + Element Plus 的现代化管理后台。
@@ -308,7 +310,7 @@ docker run -d `
 | `proxy` | object | `null` | 代理服务器配置，格式：`{"server": "...", "username": "...", "password": "..."}` |
 | `cookies` | string/object/list | `null` | 注入 Cookie。支持字符串 (`name=val;`), JSON 对象 (`{name: val}`) 或 JSON 数组 (`[{name, value, ...}]`)。自动适配主域名。 |
 | `parser` | string | `null` | 解析服务类型：`gne` (通用新闻解析), `xpath` (自定义规则), `llm` (大模型解析) |
-| `parser_config` | object | `null` | 解析配置。若为 `llm`，可配置 `{"fields": ["title", "price"]}` 指定提取字段。 |
+| `parser_config` | object | `null` | 解析配置。<br>• **gne**: 可选 `{"mode": "detail"}` (详情模式，默认) 或 `{"mode": "list"}` (列表模式)。<br>• **llm**: 必选 `{"fields": ["title", "price"]}` 指定提取字段。 |
 
 #### **请求示例**
 

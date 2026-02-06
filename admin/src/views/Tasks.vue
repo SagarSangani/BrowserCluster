@@ -1988,9 +1988,17 @@ onMounted(() => {
 }
 
 .label-with-help {
-  display: flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+:deep(.el-form-item__label) {
+  display: inline-flex !important;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .help-icon {
@@ -2005,14 +2013,23 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 12px;
   font-size: 13px;
+  font-weight: 600;
   color: #64748b;
 }
 
 .xpath-rule-row {
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
   align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #fff;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.xpath-rule-row:last-child {
+  margin-bottom: 0;
 }
 
 .rule-delete-btn {
@@ -2795,7 +2812,7 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-.label-with-help, .storage-info-cell {
+.storage-info-cell {
   display: flex;
   align-items: center;
   gap: 4px;

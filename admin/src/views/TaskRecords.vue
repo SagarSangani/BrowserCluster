@@ -152,6 +152,35 @@
                 <el-tag :type="currentTask.cached ? 'success' : 'info'">{{ currentTask.cached ? '缓存命中' : '实时抓取' }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="节点 ID">{{ currentTask.node_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="解析模式">
+                <el-tag type="warning" size="small" v-if="currentTask.params?.parser === 'gne'">
+                  {{ currentTask.params?.parser_config?.mode === 'list' ? '列表模式' : '详情模式' }}
+                </el-tag>
+                <el-tag type="info" size="small" v-else>
+                  {{ currentTask.params?.parser || '不解析' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="解析规则" :span="2" v-if="currentTask.params?.parser">
+                <template v-if="currentTask.params.parser === 'gne' && currentTask.params.parser_config?.mode === 'list'">
+                  <el-tag size="small" type="info" class="mr-2">XPath:</el-tag>
+                  <code>{{ currentTask.params.parser_config.list_xpath || '-' }}</code>
+                </template>
+                <template v-else-if="currentTask.params.parser === 'xpath'">
+                  <div class="rule-tags">
+                    <el-tag v-for="(path, field) in currentTask.params.parser_config?.rules" :key="field" size="small" class="mr-2 mb-1">
+                      {{ field }}: {{ path }}
+                    </el-tag>
+                  </div>
+                </template>
+                <template v-else-if="currentTask.params.parser === 'llm'">
+                  <div class="rule-tags">
+                    <el-tag v-for="field in currentTask.params.parser_config?.fields" :key="field" size="small" class="mr-2 mb-1">
+                      {{ field }}
+                    </el-tag>
+                  </div>
+                </template>
+                <span v-else>自动识别</span>
+              </el-descriptions-item>
               <el-descriptions-item label="存储位置">
                 <div class="storage-info-cell">
                   <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="small">
