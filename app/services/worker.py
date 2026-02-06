@@ -56,14 +56,47 @@ class Worker:
         except Exception as e:
             logger.warning(f"Failed to reload settings from DB: {e}")
 
-        # 检查是否需要自动解析（如果任务没有明确指定解析器）
-        if not params.get("parser"):
-            domain = urlparse(url).netloc
-            rule = mongo.parsing_rules.find_one({"domain": domain, "is_active": True})
-            if rule:
-                logger.info(f"Found matching parsing rule for domain {domain}: {rule['parser_type']}")
-                params["parser"] = rule["parser_type"]
-                params["parser_config"] = rule["parser_config"]
+        # 检查是否匹配网站规则配置
+        domain = urlparse(url).netloc
+        # 获取匹配该域名的规则，按优先级排序
+        rules = list(mongo.parsing_rules.find({"is_active": True}).sort("priority", -1))
+        matched_rule = None
+        
+        for rule in rules:
+            rule_domain = rule.get("domain", "")
+            if rule_domain == domain:
+                matched_rule = rule
+                break
+            if rule_domain.startswith("*."):
+                suffix = rule_domain[1:] # .example.com
+                if domain.endswith(suffix):
+                    matched_rule = rule
+                    break
+        
+        if matched_rule:
+            logger.info(f"Applying rule settings for domain {domain} (Rule: {matched_rule['domain']})")
+            # 1. 解析配置 (如果任务没有指定)
+            if not params.get("parser"):
+                params["parser"] = matched_rule.get("parser_type")
+                params["parser_config"] = matched_rule.get("parser_config")
+            
+            # 2. 浏览器特征与高级配置 (如果任务参数中对应值为 None 或默认值，则应用规则)
+            # 定义需要从规则中同步的字段
+            sync_fields = [
+                "engine", "wait_for", "timeout", "viewport", "stealth", 
+                "save_html", "screenshot", "is_fullscreen", "block_images",
+                "intercept_apis", "intercept_continue", "proxy"
+            ]
+            
+            for field in sync_fields:
+                # 如果任务 params 中没有该字段，或者该字段是空的/默认的，则使用规则配置
+                # 注意：这里需要谨慎判断，避免覆盖用户在新建任务时明确设置的参数
+                if field not in params or params[field] is None:
+                    params[field] = matched_rule.get(field)
+            
+            # 3. Cookies (如果任务没有指定)
+            if not params.get("cookies") and matched_rule.get("cookies"):
+                params["cookies"] = matched_rule.get("cookies")
 
         logger.info(f"Processing task {task_id}: {url}")
         

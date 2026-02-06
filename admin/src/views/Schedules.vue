@@ -157,7 +157,7 @@
       top="8vh"
       class="config-dialog"
     >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" label-position="top">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-tabs v-model="activeTab" class="config-tabs">
           <!-- 1. 基础信息 -->
           <el-tab-pane name="basic">
@@ -231,17 +231,56 @@
                 </el-input>
               </el-form-item>
 
+              <!-- 匹配规则展示区 -->
+              <div class="matched-rules-section" v-if="matchedRules.length > 0">
+                <div class="section-header">
+                  <div class="header-title">
+                    <el-icon><MagicStick /></el-icon>
+                    <span>发现该域名的 {{ matchedRules.length }} 条可用规则</span>
+                  </div>
+                  <div class="header-tip">点击下方规则可快速切换应用配置</div>
+                </div>
+                <div class="rules-grid">
+                  <div 
+                    v-for="rule in matchedRules" 
+                    :key="rule.id" 
+                    class="rule-option-card"
+                    :class="{ 'is-active': selectedRuleId === rule.id }"
+                    @click="applyMatchedRule(rule)"
+                  >
+                    <div class="rule-card-top">
+                      <el-tag size="small" :type="getParserTypeTag(rule.parser_type)">
+                        {{ rule.parser_type.toUpperCase() }}
+                      </el-tag>
+                      <span class="rule-priority-tag" v-if="rule.priority > 0">
+                        优先级: {{ rule.priority }}
+                      </span>
+                    </div>
+                    <div class="rule-card-body">
+                      <div class="rule-domain-text">{{ rule.domain }}</div>
+                      <div class="rule-desc-text" v-if="rule.description">{{ rule.description }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <el-form-item label="任务描述" prop="description">
                 <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入任务描述" />
               </el-form-item>
               
               <el-form-item label="Cookies" v-if="form.params">
-                <el-input
-                  v-model="form.params.cookies"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="输入 Cookies 字符串或 JSON 格式，如：key1=value1; key2=value2"
-                />
+                <div class="cookies-input-wrapper">
+                  <el-input
+                    v-model="form.params.cookies"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="输入 Cookies 字符串或 JSON 格式，如：key1=value1; key2=value2"
+                  />
+                  <div class="cookies-tip" v-if="matchedCookies">
+                    <el-icon class="success-icon"><CircleCheckFilled /></el-icon>
+                    <span>已自动加载该域名的默认 Cookies 配置</span>
+                  </div>
+                </div>
               </el-form-item>
             </div>
           </el-tab-pane>
@@ -256,38 +295,7 @@
             </template>
 
             <div class="tab-content">
-              <div class="parser-header-actions" v-if="matchedRules.length > 0">
-                <el-dropdown @command="applyMatchedRule" trigger="click">
-                  <el-button type="primary" plain size="small">
-                    <el-icon><MagicStick /></el-icon>
-                    发现 {{ matchedRules.length }} 条可用规则
-                    <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                  </el-button>
-                  <template #header>
-                    <div class="dropdown-header">选择要应用的解析规则</div>
-                  </template>
-                  <template #footer>
-                    <div class="dropdown-footer">点击规则可直接应用配置</div>
-                  </template>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item 
-                        v-for="rule in matchedRules" 
-                        :key="rule.id" 
-                        :command="rule"
-                      >
-                        <div class="rule-item-dropdown">
-                          <el-tag size="small" :type="getParserTypeTag(rule.parser_type)" class="mr-2">
-                            {{ rule.parser_type.toUpperCase() }}
-                          </el-tag>
-                          <span class="rule-domain">{{ rule.domain }}</span>
-                          <span class="rule-desc" v-if="rule.description">- {{ rule.description }}</span>
-                        </div>
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-              </div>
+              <!-- 匹配规则展示区已移至基础配置 -->
 
               <el-form-item label="解析模式" v-if="form.params">
                 <el-radio-group v-model="form.params.parser" size="default">
@@ -745,7 +753,10 @@ const xpathRules = ref([
 ])
 
 const matchedRules = ref([])
+const selectedRuleId = ref(null)
+const matchedCookies = ref(false)
 let lastCheckedDomain = ''
+let debounceTimer = null
 
 // --- 2. 过滤器状态 ---
 const filterForm = ref({
@@ -764,12 +775,54 @@ const getParserTypeTag = (type) => {
 
 const applyMatchedRule = (rule, silent = false) => {
   form.value.params.parser = rule.parser_type
+  selectedRuleId.value = rule.id
+  
+  // 确保 parser_config 对象存在
+  if (!form.value.params.parser_config) {
+    form.value.params.parser_config = {
+      mode: 'detail',
+      fields: []
+    }
+  }
+
+  if (rule.cache_config) {
+    form.value.cache.enabled = rule.cache_config.enabled
+    form.value.cache.ttl = rule.cache_config.ttl
+  }
+
   if (rule.parser_type === 'llm') {
-    selectedLlmFields.value = rule.parser_config.fields || []
+    const fields = rule.parser_config.fields || []
+    selectedLlmFields.value = [...fields]
+    form.value.params.parser_config.fields = [...fields]
+    form.value.params.parser_config.mode = rule.parser_config.mode || 'detail'
   } else if (rule.parser_type === 'xpath') {
     const rules = rule.parser_config.rules || {}
     xpathRules.value = Object.entries(rules).map(([field, path]) => ({ name: field, xpath: path }))
+    form.value.params.parser_config.rules = { ...rules }
+  } else if (rule.parser_type === 'gne') {
+    form.value.params.parser_config.mode = rule.parser_config.mode || 'detail'
+    if (rule.parser_config.mode === 'list') {
+      form.value.params.parser_config.list_xpath = rule.parser_config.list_xpath || ''
+    }
   }
+
+  // 应用浏览器特征和高级配置
+  const syncFields = [
+    "engine", "wait_for", "timeout", "viewport", "stealth", 
+    "save_html", "screenshot", "is_fullscreen", "block_images",
+    "intercept_apis", "intercept_continue", "proxy", "cookies"
+  ]
+  
+  syncFields.forEach(field => {
+    if (rule[field] !== undefined && rule[field] !== null) {
+      if (typeof rule[field] === 'object' && rule[field] !== null) {
+        form.value.params[field] = JSON.parse(JSON.stringify(rule[field]))
+      } else {
+        form.value.params[field] = rule[field]
+      }
+    }
+  })
+
   if (!silent) {
     ElMessage.success(`已应用 ${rule.domain} 的解析配置`)
   }
@@ -778,67 +831,73 @@ const applyMatchedRule = (rule, silent = false) => {
 // 监听标签页切换
 watch(activeTab, async (newTab) => {
   if (newTab === 'parser' && form.value.url && form.value.url.startsWith('http')) {
-    try {
-      const urlObj = new URL(form.value.url)
-      const domain = urlObj.hostname
-      
-      if (domain === lastCheckedDomain && matchedRules.value.length > 0) {
-        if (!form.value.params.parser && matchedRules.value.length > 0) {
-            const rule = matchedRules.value[0]
-            applyMatchedRule(rule, true)
-            ElMessage.success(`已自动加载 ${domain} 的解析配置`)
-        }
-        return
+    // 不再在此处触发自动加载，仅在 URL 输入时触发
+    // 如果没有匹配规则，尝试获取规则列表供手动选择，但不自动应用
+    if (!matchedRules.value.length) {
+      try {
+        const urlObj = new URL(form.value.url)
+        const domain = urlObj.hostname
+        const rules = await getRulesByDomain(domain)
+        matchedRules.value = rules || []
+        lastCheckedDomain = domain
+      } catch (e) {
+        console.error('Tab switch fetch rules failed:', e)
       }
-      
-      const rules = await getRulesByDomain(domain)
-      matchedRules.value = rules || []
-      lastCheckedDomain = domain
-      
-      if (matchedRules.value.length > 0) {
-        const rule = matchedRules.value[0]
-        applyMatchedRule(rule, true)
-        
-        if (matchedRules.value.length > 1) {
-          ElMessage({
-            message: `已自动加载域名 ${domain} 的首个匹配规则，共有 ${matchedRules.value.length} 条可用，您可手动切换。`,
-            type: 'success',
-            duration: 5000
-          })
-        } else {
-          ElMessage.success(`已自动加载 ${domain} 的解析配置`)
-        }
-      }
-    } catch (e) {
-      matchedRules.value = []
-      lastCheckedDomain = ''
     }
   }
 })
 
-// 监听 URL 变化
-watch(() => form.value.url, async (newUrl) => {
-  matchedRules.value = []
-  lastCheckedDomain = ''
+// 监听 URL 变化，自动获取匹配规则
+watch(() => form.value.url, (newUrl) => {
+  if (debounceTimer) clearTimeout(debounceTimer)
   
-  if (newUrl && newUrl.startsWith('http')) {
-    try {
-      const urlObj = new URL(newUrl)
-      const domain = urlObj.hostname
-      const rules = await getRulesByDomain(domain)
-      if (rules && rules.length > 0) {
-        const ruleWithCookies = rules.find(r => r.cookies && r.cookies.trim())
-        if (ruleWithCookies) {
-          form.value.params.cookies = ruleWithCookies.cookies
-          ElMessage.success(`已自动加载域名 ${domain} 的默认 Cookies`)
+  debounceTimer = setTimeout(async () => {
+    if (newUrl && newUrl.startsWith('http')) {
+      try {
+        const urlObj = new URL(newUrl)
+        const domain = urlObj.hostname
+        
+        // 如果域名没变，且已经有匹配规则了，就不重复请求
+        if (domain === lastCheckedDomain && matchedRules.value.length > 0) {
+          return
         }
-        matchedRules.value = rules
-        lastCheckedDomain = domain
+        
+        // 如果域名变了，才请求
+        if (domain && domain !== lastCheckedDomain) {
+          const rules = await getRulesByDomain(domain)
+          if (rules && rules.length > 0) {
+            matchedRules.value = rules
+            lastCheckedDomain = domain
+            
+            // 自动应用第一条匹配的规则
+            const rule = rules[0]
+            applyMatchedRule(rule, true)
+            
+            // 如果规则中有 cookies，提示一下
+            if (rule.cookies && rule.cookies.trim()) {
+              matchedCookies.value = true
+              ElMessage.success(`已自动加载域名 ${domain} 的解析配置与 Cookies`)
+            } else {
+              matchedCookies.value = false
+              ElMessage.success(`已自动加载域名 ${domain} 的解析配置`)
+            }
+          } else {
+            // 如果没匹配到规则，重置状态
+            matchedRules.value = []
+            lastCheckedDomain = domain
+            matchedCookies.value = false
+          }
+        }
+      } catch (e) {
+        // 忽略无效 URL 错误
       }
-    } catch (e) {
-      console.error('Fetch rules failed:', e)
+    } else {
+      // URL 不合法或被清空时重置
+      matchedRules.value = []
+      lastCheckedDomain = ''
+      matchedCookies.value = false
     }
-  }
+  }, 500)
 })
 
 const applyLlmPreset = (type) => {
@@ -1520,46 +1579,121 @@ onMounted(() => {
   color: #64748b;
 }
 
-.parser-header-actions {
-  margin-bottom: 16px;
+/* 匹配规则展示区样式 */
+.matched-rules-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.matched-rules-section .section-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
-.dropdown-header {
-  padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.dropdown-footer {
-  padding: 8px 16px;
-  font-size: 11px;
-  color: #cbd5e1;
-  text-align: center;
-  border-top: 1px solid #f1f5f9;
-}
-
-.rule-item-dropdown {
+.matched-rules-section .header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 400px;
-}
-
-.rule-domain {
+  gap: 6px;
   font-weight: 600;
-  color: #1e293b;
+  color: #0f172a;
+  font-size: 14px;
 }
 
-.rule-desc {
+.matched-rules-section .header-title .el-icon {
+  color: #3b82f6;
+  font-size: 16px;
+}
+
+.matched-rules-section .header-tip {
   font-size: 12px;
+  color: #64748b;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.rule-option-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.rule-option-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+.rule-option-card.is-active {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.rule-option-card.is-active::after {
+  content: '✓';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.rule-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.rule-priority-tag {
+  font-size: 11px;
   color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.rule-card-body .rule-domain-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 4px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.rule-desc-text {
+  font-size: 12px;
+  color: #64748b;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .xpath-rules-header {
@@ -1575,12 +1709,9 @@ onMounted(() => {
 .xpath-rule-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
   background-color: #fff;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
 }
 
 .xpath-rule-row:last-child {
@@ -1729,6 +1860,23 @@ onMounted(() => {
   border-radius: 4px;
   font-family: monospace;
   color: #ef4444;
+}
+
+.cookies-input-wrapper {
+  width: 100%;
+}
+
+.cookies-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-color-success);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cookies-tip .success-icon {
+  font-size: 14px;
 }
 
 .mb-4 { margin-bottom: 1rem; }

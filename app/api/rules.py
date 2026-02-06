@@ -18,40 +18,25 @@ def format_rule(rule_data: dict) -> dict:
 @router.get("/", response_model=List[ParsingRule])
 async def get_rules(current_user: dict = Depends(get_current_user)):
     """获取所有解析规则"""
-    rules = list(mongo.parsing_rules.find().sort("updated_at", -1))
+    rules = list(mongo.parsing_rules.find().sort([("priority", -1), ("updated_at", -1)]))
     return [format_rule(r) for r in rules]
 
 @router.get("/domain/{domain}", response_model=List[ParsingRule])
 async def get_rules_by_domain(domain: str, current_user: dict = Depends(get_current_user)):
     """根据域名获取解析规则列表"""
-    rules = list(mongo.parsing_rules.find({"domain": domain}))
+    rules = list(mongo.parsing_rules.find({"domain": domain}).sort("priority", -1))
     return [format_rule(r) for r in rules]
 
 @router.post("/", response_model=ParsingRule)
 async def create_rule(rule: ParsingRuleCreate, current_user: dict = Depends(get_current_user)):
-    """创建或更新解析规则（按域名唯一）"""
+    """创建解析规则"""
     try:
         rule_data = rule.model_dump()
+        rule_data["created_at"] = datetime.now()
         rule_data["updated_at"] = datetime.now()
         
-        # 检查是否已存在相同域名的规则
-        existing = mongo.parsing_rules.find_one({
-            "domain": rule.domain
-        })
-        
-        if existing:
-            # 如果已存在，则更新
-            mongo.parsing_rules.update_one(
-                {"_id": existing["_id"]},
-                {"$set": rule_data}
-            )
-            rule_data["_id"] = existing["_id"]
-            rule_data["created_at"] = existing.get("created_at", datetime.now())
-        else:
-            # 如果不存在，则插入
-            rule_data["created_at"] = datetime.now()
-            result = mongo.parsing_rules.insert_one(rule_data)
-            rule_data["_id"] = result.inserted_id
+        result = mongo.parsing_rules.insert_one(rule_data)
+        rule_data["_id"] = result.inserted_id
             
         return format_rule(rule_data)
     except Exception as e:

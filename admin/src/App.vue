@@ -396,7 +396,7 @@ body {
 }
 
 .el-menu-item.is-active {
-  background-color: #1f2d3d !important;
+  background-color: #273445 !important;
 }
 
 .sidebar-footer {

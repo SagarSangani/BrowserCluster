@@ -30,7 +30,21 @@ class MongoDB:
         if self._client is None:
             self._client = MongoClient(settings.mongo_uri)
             self._db = self._client[settings.mongo_db]
+            self._init_indexes()
         return self._db
+
+    def _init_indexes(self):
+        """初始化数据库索引"""
+        try:
+            # 移除 parsing_rules 的域名唯一索引
+            self._db.parsing_rules.drop_index("domain_1")
+        except Exception:
+            # 如果索引不存在则忽略
+            pass
+        
+        # 创建非唯一索引以提高查询效率
+        self._db.parsing_rules.create_index([("domain", 1)])
+        self._db.parsing_rules.create_index([("priority", -1)])
 
     def close(self):
         """关闭 MongoDB 连接"""
