@@ -15,7 +15,6 @@ from app.services.parser_service import parser_service
 from app.services.oss_service import oss_service
 from app.core.config import settings
 from app.db.mongo import mongo
-from app.db.redis import redis_client
 from app.core.browser import browser_manager
 from app.core.drission_browser import drission_manager
 

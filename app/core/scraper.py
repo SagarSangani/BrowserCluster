@@ -9,12 +9,10 @@ import re
 import json
 import logging
 import asyncio
-from typing import Optional, Dict, Any, List, Union
+from typing import Dict, Any, List
 from urllib.parse import urlparse
 
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 from playwright_stealth import Stealth
-from DrissionPage import ChromiumPage, ChromiumOptions
 
 from app.core.browser import browser_manager
 from app.core.drission_browser import drission_manager

@@ -3,8 +3,8 @@
 """
 import uuid
 from datetime import datetime
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Body
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
 from app.db.mongo import mongo
 from app.models.schedule import ScheduleModel, ScheduleCreate, ScheduleUpdate, ScheduleStatus
 from app.services.scheduler_service import scheduler_service

@@ -16,7 +16,6 @@ from app.services.queue_service import rabbitmq_service
 from app.services.cache_service import cache_service
 from app.services.task_service import task_service
 from app.db.mongo import mongo
-from app.core.config import settings
 from app.core.auth import get_current_user
 import asyncio
 

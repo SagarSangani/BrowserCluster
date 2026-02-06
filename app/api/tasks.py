@@ -12,7 +12,7 @@ from app.db.mongo import mongo
 from app.services.queue_service import rabbitmq_service
 from app.services.oss_service import oss_service
 from app.core.auth import get_current_user
-from app.core.config import settings
+
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["Tasks"])
 
