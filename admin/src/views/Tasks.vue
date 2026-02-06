@@ -107,7 +107,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" width="140" align="center">
+        <el-table-column prop="status" label="状态" width="120" align="center">
           <template #default="{ row }">
             <div class="status-container">
               <el-tag :type="getStatusType(row.status)" size="default" effect="dark" class="status-tag">
@@ -2327,31 +2327,37 @@ onMounted(() => {
 .stats-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #475569;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1;
 }
 
 .stat-item .el-icon {
-  font-size: 15px;
-  color: #64748b;
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 .stat-item .label {
   color: #94a3b8;
-  font-size: 14px;
-  min-width: 35px;
+  font-size: 13px;
+  min-width: 32px;
+}
+
+.stat-tag {
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  border: none;
 }
 
 .timing-row {
-  align-items: flex-start !important;
-  padding-top: 2px;
+  align-items: center;
 }
 
 .timing-tags {
@@ -2380,7 +2386,7 @@ onMounted(() => {
 }
 
 .cache-tag {
-  font-size: 12px !important;
+  font-size: 13px !important;
   height: 24px;
   line-height: 24px;
 }
@@ -2393,14 +2399,14 @@ onMounted(() => {
 .timeline-mini {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .time-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 3px;
+  font-size: 13px;
   color: #64748b;
 }
 
@@ -2408,6 +2414,7 @@ onMounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .time-row .dot.create { background-color: #3b82f6; }
@@ -2415,24 +2422,43 @@ onMounted(() => {
 
 .time-row .label {
   color: #94a3b8;
-  min-width: 30px;
+  min-width: 32px;
 }
 
 .time-row .time {
-  font-family: monospace;
+  font-family: 'JetBrains Mono', monospace;
+  color: #475569;
 }
 
 /* 原有样式保持或替换 */
 .tasks-container {
   padding: 20px;
-  background-color: #f5f7fa;
-  min-height: calc(100vh - 60px);
 }
 
 .tasks-card {
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 24px;
+}
+
+.tasks-table :deep(.el-table__cell) {
+  padding: 12px 0;
+}
+
+.tasks-table :deep(.el-table__header .el-table__cell) {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  height: 50px;
+}
+
+.tasks-table :deep(.el-table__row) {
+  transition: background-color 0.2s;
+}
+
+.tasks-table :deep(.el-table__row:hover > td) {
+  background-color: #f1f5f9 !important;
 }
 
 .tasks-card:hover {
@@ -2475,9 +2501,16 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-.tasks-container {
+.card-header {
+  padding: 20px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
   align-items: center;
 }
 
@@ -2494,9 +2527,26 @@ onMounted(() => {
 }
 
 .filter-bar {
-  padding: 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #ebeef5;
+  padding: 16px 20px;
+  background-color: #fcfdfe;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.filter-form :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: 0;
+}
+
+.filter-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #475569;
 }
 
 /* Bento 风格新建任务对话框 */

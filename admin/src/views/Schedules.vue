@@ -76,13 +76,13 @@
         <el-table-column label="调度策略" width="200">
           <template #default="{ row }">
             <div class="schedule-policy">
-              <el-tag v-if="row.schedule_type === 'interval'" type="info" size="small">
+              <el-tag v-if="row.schedule_type === 'interval'" type="info" size="small" class="policy-tag">
                 每隔 {{ formatInterval(row.interval) }} 执行一次
               </el-tag>
-              <el-tag v-else-if="row.schedule_type === 'cron'" type="warning" size="small">
+              <el-tag v-else-if="row.schedule_type === 'cron'" type="warning" size="small" class="policy-tag">
                 Cron: {{ row.cron }}
               </el-tag>
-              <el-tag v-else-if="row.schedule_type === 'once'" type="success" size="small">
+              <el-tag v-else-if="row.schedule_type === 'once'" type="success" size="small" class="policy-tag">
                 定时: {{ row.once_time }}
               </el-tag>
             </div>
@@ -100,16 +100,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="执行时间" width="200">
+        <el-table-column label="执行时间" width="250">
           <template #default="{ row }">
             <div class="execution-times">
               <div class="time-item">
-                <span class="label">最近:</span>
-                <span class="time">{{ formatDate(row.last_run) || '-' }}</span>
+                <span class="label">最近执行:</span>
+                <span class="value">{{ formatDate(row.last_run) || '-' }}</span>
               </div>
               <div class="time-item" v-if="row.status === 'active'">
-                <span class="label">下次:</span>
-                <span class="time">{{ formatDate(row.next_run) || '-' }}</span>
+                <span class="label">下次执行:</span>
+                <span class="value">{{ formatDate(row.next_run) || '-' }}</span>
               </div>
             </div>
           </template>
@@ -1398,15 +1398,17 @@ onMounted(() => {
 
 <style scoped>
 .schedules-container {
-  padding: 24px;
-  background-color: #f0f2f5;
-  min-height: calc(100vh - 64px);
+  padding: 20px;
 }
 
 .schedules-card {
-  border-radius: 8px;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.schedules-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 }
 
 .card-header {
@@ -1414,12 +1416,14 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .header-left .title {
   font-size: 18px;
   font-weight: 600;
-  color: #1f2f3d;
+  color: #303133;
 }
 
 .header-left .subtitle {
@@ -1431,29 +1435,54 @@ onMounted(() => {
 .name-column {
   display: flex;
   flex-direction: column;
-  line-height: 1.4;
+  gap: 10px;
+  padding-left: 10px;
 }
 
 .schedule-name {
   font-weight: 600;
-  color: #303133;
+  color: #334155;
   font-size: 14px;
 }
 
 .schedule-desc {
   font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .filter-bar {
   padding: 16px 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #ebeef5;
+  background-color: #fcfdfe;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .filter-form :deep(.el-form-item) {
   margin-bottom: 0;
+}
+
+.filter-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #475569;
+}
+
+.schedules-table :deep(.el-table__cell) {
+  padding: 12px 0;
+}
+
+.schedules-table :deep(.el-table__header .el-table__cell) {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  height: 50px;
+}
+
+.schedules-table :deep(.el-table__row) {
+  transition: background-color 0.2s;
+}
+
+.schedules-table :deep(.el-table__row:hover > td) {
+  background-color: #f1f5f9 !important;
 }
 
 .url-link {
@@ -1461,36 +1490,68 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 13px;
+  font-weight: 500;
   max-width: 100%;
 }
 
-.url-link :deep(.el-link--inner) {
+.url-link :deep(.el-link__inner) {
   display: inline-block;
+  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .schedule-policy {
-  display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.policy-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+.el-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+}
+
+.el-button:active {
+  transform: scale(0.95);
+}
+
+.el-button--primary {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+}
+
+.el-button--primary:hover {
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 .execution-times {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .time-item {
-  font-size: 12px;
-  color: #606266;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .time-item .label {
-  color: #909399;
-  margin-right: 4px;
+  color: #94a3b8;
+}
+
+.time-item .value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: #475569;
 }
 
 .pagination-container {

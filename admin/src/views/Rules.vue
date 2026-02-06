@@ -11,7 +11,7 @@
     </div>
 
     <el-card shadow="never" class="table-card">
-      <el-table :data="rules" v-loading="loading" style="width: 100%">
+      <el-table :data="rules" v-loading="loading" style="width: 100%;">
         <el-table-column prop="domain" label="域名" min-width="150" />
         <el-table-column prop="priority" label="优先级" width="100" sortable>
           <template #default="{ row }">
@@ -740,6 +740,22 @@ onMounted(() => {
 }
 .table-card {
   margin-bottom: 20px;
+  border-radius: 12px;
+}
+
+:deep(.el-table__header .el-table__cell) {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  height: 50px;
+}
+
+:deep(.el-table__row) {
+  transition: background-color 0.2s;
+}
+
+:deep(.el-table__row:hover > td) {
+  background-color: #f1f5f9 !important;
 }
 /* Dialog & Tabs Styles */
 .config-dialog :deep(.el-dialog__body) {
