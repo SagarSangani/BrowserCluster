@@ -64,7 +64,9 @@
 
       <el-table 
         :data="tasks" 
-        v-loading="loading" 
+        v-loading="loading"
+        element-loading-text="加载任务列表中..."
+        element-loading-background="rgba(255, 255, 255, 0.7)"
         style="width: 100%" 
         class="tasks-table" 
         border 
@@ -2428,11 +2430,52 @@ onMounted(() => {
 }
 
 .tasks-card {
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card-header {
+.tasks-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.el-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+}
+
+.el-button:active {
+  transform: scale(0.95);
+}
+
+.el-button--primary {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+}
+
+.el-button--primary:hover {
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.el-button--success {
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.2);
+}
+
+.el-button--success:hover {
+  box-shadow: 0 6px 16px rgba(103, 194, 58, 0.3);
+  transform: translateY(-1px);
+}
+
+.el-button--danger {
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.2);
+}
+
+.el-button--danger:hover {
+  box-shadow: 0 6px 16px rgba(245, 108, 108, 0.3);
+  transform: translateY(-1px);
+}
+
+.tasks-container {
   display: flex;
   justify-content: space-between;
   align-items: center;

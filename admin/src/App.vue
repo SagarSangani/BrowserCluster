@@ -305,7 +305,7 @@ body {
 .sidebar {
   background-color: #304156;
   color: #fff;
-  transition: width 0.3s;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   box-shadow: 2px 0 6px rgba(0, 21, 41, 0.35);
   z-index: 1001;
@@ -389,14 +389,26 @@ body {
 .el-menu-item {
   height: 50px;
   line-height: 50px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: 4px 8px;
+  border-radius: 8px;
+  width: calc(100% - 16px);
 }
 
 .el-menu-item:hover {
-  background-color: #263445 !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
 }
 
 .el-menu-item.is-active {
-  background-color: #273445 !important;
+  background-color: #409EFF !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+}
+
+.el-menu--collapse .el-menu-item {
+  width: calc(100% - 16px);
+  margin: 4px 8px;
 }
 
 .sidebar-footer {
@@ -466,11 +478,15 @@ body {
 .collapse-btn {
   font-size: 20px;
   cursor: pointer;
-  transition: color 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 8px;
+  border-radius: 4px;
 }
 
 .collapse-btn:hover {
+  background-color: #f5f7fa;
   color: #409EFF;
+  transform: scale(1.1);
 }
 
 .header-right {
@@ -491,12 +507,17 @@ body {
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-btn:hover {
   background-color: #f5f7fa;
   color: #409EFF;
+  transform: translateY(-2px);
+}
+
+.action-btn:active {
+  transform: translateY(0) scale(0.95);
 }
 
 .stats-overview {
@@ -569,14 +590,19 @@ body {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 0 8px;
+  padding: 4px 12px;
   height: 40px;
-  transition: background 0.3s;
-  border-radius: 4px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
 }
 
 .user-info:hover {
-  background-color: rgba(0, 0, 0, 0.025);
+  background-color: #f5f7fa;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.user-info:active {
+  transform: scale(0.98);
 }
 
 .username {
@@ -593,19 +619,19 @@ body {
   padding: 20px;
 }
 
-/* Transitions */
+/* Transitions - 优化切换流畅度 */
 .fade-transform-enter-active,
 .fade-transform-leave-active {
-  transition: all 0.5s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-transform-enter-from {
   opacity: 0;
-  transform: translateX(-30px);
+  transform: translateX(-15px);
 }
 
 .fade-transform-leave-to {
   opacity: 0;
-  transform: translateX(30px);
+  transform: translateX(15px);
 }
 </style>

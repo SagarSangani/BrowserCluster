@@ -65,7 +65,7 @@
         class="modern-table"
         :header-cell-style="{ background: '#f8fafc', color: '#475569', fontWeight: '600', height: '50px' }"
       >
-        <el-table-column prop="key" label="配置键 (Key)" width="350">
+        <el-table-column prop="key" label="配置键 (Key)" width="380">
           <template #default="{ row }">
             <div class="key-wrapper">
               <div class="key-icon-bg" :class="{ 'is-schema': row.isSchema && !row.isDynamic }">
@@ -98,7 +98,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="description" label="说明" min-width="180">
+        <el-table-column prop="description" label="说明" min-width="200">
           <template #default="{ row }">
              <div class="desc-wrapper">
                <span class="desc-text" :class="{ 'no-desc': !row.description }">
@@ -813,7 +813,7 @@ onMounted(() => {
   justify-content: center;
   gap: 6px;
   color: #64748b;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .action-links {
