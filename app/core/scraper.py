@@ -7,11 +7,12 @@ import time
 import base64
 import re
 import json
-import logging
 import asyncio
+import logging
 from typing import Dict, Any, List
 from urllib.parse import urlparse
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright_stealth import Stealth
 
 from app.core.browser import browser_manager
