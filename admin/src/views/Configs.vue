@@ -56,6 +56,21 @@
       </el-input>
     </div>
 
+    <!-- 分类标签页 -->
+    <div class="category-tabs">
+      <el-tabs v-model="activeTab" class="modern-tabs">
+        <el-tab-pane v-for="(cat, key) in categories" :key="key" :name="key">
+          <template #label>
+            <span class="tab-label">
+              <el-icon><component :is="cat.icon" /></el-icon>
+              <span>{{ cat.name }}</span>
+              <el-badge :value="getCategoryCount(key)" :hidden="getCategoryCount(key) === 0" type="info" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+
     <!-- 配置列表表格 -->
     <div class="table-container">
       <el-table 
@@ -228,7 +243,8 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Plus, Refresh, Delete, Setting, Timer, Search, 
-  Edit, DocumentCopy, InfoFilled, Cpu, Document, Download, Warning
+  Edit, DocumentCopy, InfoFilled, Cpu, Document, Download, Warning,
+  Monitor, Box, Connection, Cpu as CpuIcon, MagicStick, Cloudy, Share, List
 } from '@element-plus/icons-vue'
 import { 
   getConfigs, 
@@ -247,13 +263,43 @@ const needsRestart = ref(false)
 const configs = ref([])
 const schema = ref([])
 const searchQuery = ref('')
+const activeTab = ref('all')
 
-// 日志相关
-const logDrawerVisible = ref(false)
-const logContent = ref('')
-const autoScroll = ref(true)
-const logContainer = ref(null)
-let logAbortController = null
+// 分类定义
+const categories = {
+  all: { name: '全部配置', icon: 'List' },
+  basic: { name: '基础配置', icon: 'Setting' },
+  browser: { name: '浏览器', icon: 'Monitor' },
+  database: { name: '数据库/队列', icon: 'Box' },
+  worker: { name: '节点/Worker', icon: 'CpuIcon' },
+  proxy: { name: '代理池', icon: 'Connection' },
+  llm: { name: '大模型', icon: 'MagicStick' },
+  oss: { name: '存储(OSS)', icon: 'Cloudy' },
+  other: { name: '其他', icon: 'Share' }
+}
+
+// 键到分类的映射逻辑
+const getCategory = (key) => {
+  if (key.startsWith('app_') || ['debug', 'host', 'port', 'secret_key', 'algorithm', 'access_token_expire_minutes', 'log_level', 'log_file'].includes(key)) {
+    return 'basic'
+  }
+  if (key.startsWith('browser_') || key.startsWith('default_') || ['headless', 'block_images', 'block_media', 'user_agent', 'stealth_mode', 'browser_idle_timeout'].includes(key)) {
+    return 'browser'
+  }
+  if (key.includes('mongo') || key.includes('redis') || key.includes('rabbitmq')) {
+    // 代理池也用 redis，但如果有 proxy 前缀则归类到 proxy
+    if (key.startsWith('proxy_')) return 'proxy'
+    return 'database'
+  }
+  if (key.startsWith('worker_') || key.startsWith('node_') || ['retry_enabled', 'max_retries', 'retry_delay', 'heartbeat_interval', 'max_node_auto_retries'].includes(key)) {
+    return 'worker'
+  }
+  if (key.startsWith('llm_')) return 'llm'
+  if (key.startsWith('oss_')) return 'oss'
+  if (key.startsWith('proxy_')) return 'proxy'
+  if (key.includes('cache')) return 'database' // 缓存也归类到数据库/队列
+  return 'other'
+}
 
 const filteredConfigs = computed(() => {
   // 合并 schema 和现有配置
@@ -261,50 +307,102 @@ const filteredConfigs = computed(() => {
   
   const allItems = schema.value.map(s => {
     const dbConfig = dbConfigsMap.get(s.key)
-    if (dbConfig) {
-      return {
-        ...dbConfig,
-        isDynamic: true,
-        isSchema: true,
-        title: s.title,
-        type: s.type,
-        default: s.default
-      }
-    } else {
-      return {
-        key: s.key,
-        value: s.current_value !== undefined ? s.current_value : s.default,
-        description: s.description,
-        isDynamic: false,
-        isSchema: true,
-        title: s.title,
-        type: s.type,
-        default: s.default,
-        updated_at: null
-      }
+    const item = dbConfig ? {
+      ...dbConfig,
+      isDynamic: true,
+      isSchema: true,
+      title: s.title,
+      type: s.type,
+      default: s.default
+    } : {
+      key: s.key,
+      value: s.current_value !== undefined ? s.current_value : s.default,
+      description: s.description,
+      isDynamic: false,
+      isSchema: true,
+      title: s.title,
+      type: s.type,
+      default: s.default,
+      updated_at: null
     }
+    return { ...item, category: getCategory(item.key) }
   })
 
-  // 添加不在 schema 中的配置（如果有的话）
+  // 添加不在 schema 中的配置
   const schemaKeys = new Set(schema.value.map(s => s.key))
   configs.value.forEach(c => {
     if (!schemaKeys.has(c.key)) {
       allItems.push({
         ...c,
         isDynamic: true,
-        isSchema: false
+        isSchema: false,
+        category: getCategory(c.key)
       })
     }
   })
 
-  if (!searchQuery.value) return allItems
-  const query = searchQuery.value.toLowerCase()
-  return allItems.filter(item => 
-    item.key.toLowerCase().includes(query) || 
-    (item.description && item.description.toLowerCase().includes(query)) ||
-    (item.value && String(item.value).toLowerCase().includes(query))
-  )
+  // 按分类过滤
+  let result = allItems
+  if (activeTab.value !== 'all') {
+    result = allItems.filter(item => item.category === activeTab.value)
+  }
+
+  // 按搜索查询过滤
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(item => 
+      item.key.toLowerCase().includes(query) || 
+      (item.description && item.description.toLowerCase().includes(query)) ||
+      (item.value && String(item.value).toLowerCase().includes(query))
+    )
+  }
+
+  return result
 })
+
+const getCategoryCount = (categoryKey) => {
+  // 计算每个分类的数量，考虑搜索过滤
+  const dbConfigsMap = new Map(configs.value.map(c => [c.key, c]))
+  const allKeys = new Set([...schema.value.map(s => s.key), ...configs.value.map(c => c.key)])
+  
+  const allItems = Array.from(allKeys).map(key => {
+    const s = schema.value.find(item => item.key === key)
+    const dbConfig = dbConfigsMap.get(key)
+    const item = dbConfig ? {
+      ...dbConfig,
+      isDynamic: true,
+      isSchema: !!s,
+      description: dbConfig.description || (s ? s.description : '')
+    } : {
+      key: key,
+      value: s.current_value !== undefined ? s.current_value : s.default,
+      description: s.description,
+      isDynamic: false,
+      isSchema: true
+    }
+    return { ...item, category: getCategory(key) }
+  })
+
+  let filtered = allItems
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = allItems.filter(item => 
+      item.key.toLowerCase().includes(query) || 
+      (item.description && item.description.toLowerCase().includes(query)) ||
+      (item.value && String(item.value).toLowerCase().includes(query))
+    )
+  }
+
+  if (categoryKey === 'all') return filtered.length
+  return filtered.filter(item => item.category === categoryKey).length
+}
+
+// 日志相关
+const logDrawerVisible = ref(false)
+const logContent = ref('')
+const autoScroll = ref(true)
+const logContainer = ref(null)
+let logAbortController = null
 
 const showAddDialog = ref(false)
 const showEditDialog = ref(false)
@@ -641,6 +739,57 @@ onMounted(() => {
 /* 搜索过滤 */
 .filter-section {
   margin-bottom: 20px;
+}
+
+.category-tabs {
+  margin-bottom: 20px;
+  background: #fff;
+  padding: 0 15px;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.modern-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.modern-tabs :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+.modern-tabs :deep(.el-tabs__item) {
+  height: 60px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.3s;
+}
+
+.modern-tabs :deep(.el-tabs__item.is-active) {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-badge {
+  margin-left: 4px;
+}
+
+.tab-badge :deep(.el-badge__content) {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: none;
+}
+
+.modern-tabs :deep(.el-tabs__item.is-active) .tab-badge :deep(.el-badge__content) {
+  background-color: #eff6ff;
+  color: #3b82f6;
 }
 
 /* 日志抽屉样式 */
