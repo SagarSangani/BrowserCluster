@@ -28,7 +28,12 @@ class RedisClient:
             Redis: Redis 客户端实例
         """
         if self._cache_client is None:
-            self._cache_client = redis.from_url(settings.redis_cache_url, decode_responses=True)
+            self._cache_client = redis.from_url(
+                settings.redis_cache_url, 
+                decode_responses=True,
+                health_check_interval=30,
+                retry_on_timeout=True
+            )
         return self._cache_client
 
     def connect_queue(self):
@@ -39,7 +44,12 @@ class RedisClient:
             Redis: Redis 客户端实例
         """
         if self._queue_client is None:
-            self._queue_client = redis.from_url(settings.redis_url, decode_responses=True)
+            self._queue_client = redis.from_url(
+                settings.redis_url, 
+                decode_responses=True,
+                health_check_interval=30,
+                retry_on_timeout=True
+            )
         return self._queue_client
 
     @property
