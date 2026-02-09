@@ -349,6 +349,34 @@
                   </div>
                 </el-descriptions-item>
 
+                <!-- 第七行：存储位置 -->
+                <el-descriptions-item :span="2">
+                  <template #label>
+                    <div class="label-box"><el-icon><Box /></el-icon><span>存储位置</span></div>
+                  </template>
+                  <div class="value-content storage-value" v-if="currentTask.params?.storage_type">
+                    <el-tag type="success" size="small" class="storage-tag">
+                      <el-icon><Collection v-if="currentTask.params.storage_type === 'mongo'" /><FolderOpened v-else /></el-icon>
+                      {{ currentTask.params.storage_type === 'mongo' ? 'MongoDB' : 'Aliyun OSS' }}
+                    </el-tag>
+                    <code class="storage-path">
+                      <template v-if="currentTask.params.storage_type === 'mongo'">
+                        集合: {{ currentTask.params.mongo_collection || 'tasks_results' }}
+                      </template>
+                      <template v-else>
+                        路径: {{ currentTask.params.oss_path || 'tasks/' }}{{ currentTask.task_id }}/
+                      </template>
+                    </code>
+                  </div>
+                  <div class="value-content storage-value" v-else>
+                    <el-tag type="info" size="small" class="storage-tag">
+                      <el-icon><Collection /></el-icon>
+                      MongoDB (默认)
+                    </el-tag>
+                    <code class="storage-path">集合: tasks_results</code>
+                  </div>
+                </el-descriptions-item>
+
                 <!-- 第七行：解析规则 (全行) -->
                 <el-descriptions-item :span="2" v-if="currentTask.params?.parser">
                   <template #label>
@@ -377,30 +405,8 @@
                   </div>
                 </el-descriptions-item>
 
-                <!-- 第八行：存储配置和重定向 (如果有) -->
-                <el-descriptions-item :span="currentTask.result?.metadata?.actual_url && currentTask.result.metadata.actual_url !== currentTask.url ? 1 : 2">
-                  <template #label>
-                    <div class="label-box"><el-icon><Box /></el-icon><span>存储位置</span></div>
-                  </template>
-                  <div class="value-content storage-cell">
-                    <div class="storage-info-wrapper">
-                      <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="small">
-                        {{ currentTask.params?.storage_type === 'oss' ? 'OSS 存储' : 'MongoDB 存储' }}
-                      </el-tag>
-                      <div class="storage-detail-tag">
-                        <template v-if="currentTask.params?.storage_type === 'oss'">
-                          <el-icon><FolderOpened /></el-icon>
-                          <span>路径: <code>{{ currentTask.params?.oss_path ? (currentTask.params.oss_path.endsWith('/') ? currentTask.params.oss_path : currentTask.params.oss_path + '/') : 'tasks/' }}{{ currentTask.task_id }}/</code></span>
-                        </template>
-                        <template v-else>
-                          <el-icon><Collection /></el-icon>
-                          <span>集合: <code>{{ currentTask.params?.mongo_collection || 'tasks_results' }}</code></span>
-                        </template>
-                      </div>
-                    </div>
-                  </div>
-                </el-descriptions-item>
-                <el-descriptions-item v-if="currentTask.result?.metadata?.actual_url && currentTask.result.metadata.actual_url !== currentTask.url">
+                <!-- 第八行：实际 URL (如果有重定向) -->
+                <el-descriptions-item :span="2" v-if="currentTask.result?.metadata?.actual_url && currentTask.result.metadata.actual_url !== currentTask.url">
                   <template #label>
                     <div class="label-box"><el-icon><Right /></el-icon><span>实际 URL</span></div>
                   </template>
@@ -1133,12 +1139,39 @@ tr:hover .copy-btn-hover {
 }
 
 .url-value {
-  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .url-text {
   word-break: break-all;
-  line-height: 1.5;
+  line-height: 1.4;
+}
+
+.storage-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.storage-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 24px;
+}
+
+.storage-path {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: #64748b;
+  background-color: #f8fafc;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
 }
 
 .duration-tag {

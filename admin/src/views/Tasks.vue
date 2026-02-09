@@ -766,64 +766,117 @@
         <el-tabs v-model="activeTab">
           <el-tab-pane label="基本信息" name="info">
             <el-descriptions :column="2" border size="default" class="detail-descriptions">
-              <el-descriptions-item label="任务 ID">{{ currentTask.task_id }}</el-descriptions-item>
-              <el-descriptions-item label="当前状态">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Key /></el-icon><span>任务 ID</span></div>
+                </template>
+                {{ currentTask.task_id }}
+              </el-descriptions-item>
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Watch /></el-icon><span>当前状态</span></div>
+                </template>
                 <el-tag :type="getStatusType(currentTask.status)" size="default">{{ getStatusText(currentTask.status) }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="目标 URL" :span="2">
+              <el-descriptions-item :span="2">
+                <template #label>
+                  <div class="label-box"><el-icon><Link /></el-icon><span>目标 URL</span></div>
+                </template>
                 <el-link :href="currentTask.url" target="_blank" type="primary" class="detail-url-link">{{ currentTask.url }}</el-link>
               </el-descriptions-item>
-              <el-descriptions-item label="创建时间">{{ formatDate(currentTask.created_at) }}</el-descriptions-item>
-              <el-descriptions-item label="完成时间">{{ formatDate(currentTask.completed_at) || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="缓存命中">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Timer /></el-icon><span>创建时间</span></div>
+                </template>
+                {{ formatDate(currentTask.created_at) }}
+              </el-descriptions-item>
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><CircleCheck /></el-icon><span>完成时间</span></div>
+                </template>
+                {{ formatDate(currentTask.completed_at) || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Files /></el-icon><span>缓存命中</span></div>
+                </template>
                 <el-tag :type="currentTask.cached ? 'success' : 'info'" size="default">
                   {{ currentTask.cached ? '命中' : '未命中' }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="节点 ID">{{ currentTask.node_id || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="浏览器引擎">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Cpu /></el-icon><span>节点 ID</span></div>
+                </template>
+                {{ currentTask.node_id || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Monitor /></el-icon><span>浏览器引擎</span></div>
+                </template>
                 <el-tag size="default" type="primary" effect="plain">
                   {{ currentTask.params?.engine || 'playwright' }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="反检测 (Stealth)">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Lock /></el-icon><span>反检测</span></div>
+                </template>
                 <el-tag :type="currentTask.params?.stealth ? 'success' : 'info'" size="default">
                   {{ currentTask.params?.stealth ? '开启' : '关闭' }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="存储位置">
-                <div class="storage-info-cell">
+              <el-descriptions-item :span="2">
+                <template #label>
+                  <div class="label-box"><el-icon><Box /></el-icon><span>存储位置</span></div>
+                </template>
+                <div class="storage-info-cell" v-if="currentTask.params?.storage_type">
                   <el-tag :type="currentTask.params?.storage_type === 'oss' ? 'warning' : 'info'" size="default">
-                    {{ currentTask.params?.storage_type === 'oss' ? 'OSS 对象存储' : 'MongoDB 数据库' }}
+                    <el-icon><Collection v-if="currentTask.params.storage_type === 'mongo'" /><FolderOpened v-else /></el-icon>
+                    {{ currentTask.params?.storage_type === 'oss' ? 'Aliyun OSS' : 'MongoDB' }}
                   </el-tag>
-                  <el-tooltip placement="top">
-                    <template #content>
-                      {{ currentTask.params?.storage_type === 'oss' ? '该任务的 HTML 源码和截图存储在云端 OSS，数据库仅保留元数据。' : '该任务的所有数据（包括 HTML 源码和截图）均存储在本地 MongoDB 数据库中。' }}
+                  <code class="storage-path-code">
+                    <template v-if="currentTask.params.storage_type === 'mongo'">
+                      集合: {{ currentTask.params.mongo_collection || 'tasks_results' }}
                     </template>
-                    <el-icon class="help-icon-inline"><QuestionFilled /></el-icon>
-                  </el-tooltip>
+                    <template v-else>
+                      路径: {{ currentTask.params.oss_path || 'tasks/' }}{{ currentTask.task_id }}/
+                    </template>
+                  </code>
                 </div>
               </el-descriptions-item>
-              <el-descriptions-item label="保存 HTML">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Document /></el-icon><span>保存 HTML</span></div>
+                </template>
                 <el-tag :type="currentTask.params?.save_html !== false ? 'success' : 'info'" size="default">
                   {{ currentTask.params?.save_html !== false ? '是' : '否' }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="解析引擎">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><MagicStick /></el-icon><span>解析引擎</span></div>
+                </template>
                 <el-tag :type="currentTask.params?.parser ? 'success' : 'info'" size="default">
                   {{ currentTask.params?.parser || '不解析' }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="解析模式">
+              <el-descriptions-item>
+                <template #label>
+                  <div class="label-box"><el-icon><Setting /></el-icon><span>解析模式</span></div>
+                </template>
                 <el-tag type="warning" size="default" v-if="currentTask.params?.parser === 'gne'">
                   {{ currentTask.params?.parser_config?.mode === 'list' ? '列表模式' : '详情模式' }}
                 </el-tag>
                 <span v-else>-</span>
               </el-descriptions-item>
 
-              <el-descriptions-item label="解析规则" :span="2" v-if="currentTask.params?.parser">
+              <el-descriptions-item :span="2" v-if="currentTask.params?.parser">
+                <template #label>
+                  <div class="label-box"><el-icon><MagicStick /></el-icon><span>解析规则</span></div>
+                </template>
                 <template v-if="currentTask.params.parser === 'gne' && currentTask.params.parser_config?.mode === 'list'">
-                  <el-tag size="small" type="danger" class="mr-2">XPath:</el-tag>
+                  <span class="rule-label mr-2">列表 XPath:</span>
                   <code>{{ currentTask.params.parser_config.list_xpath || '-' }}</code>
                 </template>
                 <template v-else-if="currentTask.params.parser === 'xpath'">
@@ -843,7 +896,10 @@
                 <span v-else>自动识别</span>
               </el-descriptions-item>
               
-              <el-descriptions-item label="OSS HTML 路径" :span="2" v-if="currentTask.result?.oss_html">
+              <el-descriptions-item :span="2" v-if="currentTask.result?.oss_html">
+                <template #label>
+                  <div class="label-box"><el-icon><Connection /></el-icon><span>OSS HTML 路径</span></div>
+                </template>
                 <div class="oss-path-info">
                   <el-link :href="currentTask.result.oss_html" target="_blank" type="primary" class="detail-url-link">
                     {{ currentTask.result.oss_html }}
@@ -851,7 +907,10 @@
                   <el-button size="small" link @click="copyToClipboard(currentTask.result.oss_html)">复制</el-button>
                 </div>
               </el-descriptions-item>
-              <el-descriptions-item label="OSS 截图路径" :span="2" v-if="currentTask.result?.oss_screenshot">
+              <el-descriptions-item :span="2" v-if="currentTask.result?.oss_screenshot">
+                <template #label>
+                  <div class="label-box"><el-icon><Picture /></el-icon><span>OSS截图路径</span></div>
+                </template>
                 <div class="oss-path-info">
                   <el-link :href="currentTask.result.oss_screenshot" target="_blank" type="primary" class="detail-url-link">
                     {{ currentTask.result.oss_screenshot }}
@@ -864,13 +923,24 @@
             <div v-if="currentTask.result" class="metadata-section">
               <el-divider content-position="left">页面元数据</el-divider>
               <el-descriptions :column="2" border size="default" class="detail-descriptions">
-                <el-descriptions-item label="页面标题" :span="2" width="120px">{{ currentTask.result.metadata?.title || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="实际 URL" :span="2" v-if="currentTask.result.metadata?.actual_url">
+                <el-descriptions-item :span="2" width="120px">
+                  <template #label>
+                    <div class="label-box"><el-icon><Document /></el-icon><span>页面标题</span></div>
+                  </template>
+                  {{ currentTask.result.metadata?.title || '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item :span="2" v-if="currentTask.result.metadata?.actual_url">
+                  <template #label>
+                    <div class="label-box"><el-icon><Right /></el-icon><span>实际 URL</span></div>
+                  </template>
                   <el-link :href="currentTask.result.metadata.actual_url" target="_blank" type="success" class="detail-url-link">
                     {{ currentTask.result.metadata.actual_url }}
                   </el-link>
                 </el-descriptions-item>
-                <el-descriptions-item label="加载用时">
+                <el-descriptions-item>
+                  <template #label>
+                    <div class="label-box"><el-icon><Timer /></el-icon><span>加载用时</span></div>
+                  </template>
                   <el-tag type="warning" effect="plain" size="default">
                     {{ currentTask.result.metadata?.load_time?.toFixed(2) }}s
                   </el-tag>
@@ -2580,6 +2650,48 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
 }
 
+.label-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label-box .el-icon {
+  font-size: 16px;
+  color: #64748b;
+}
+
+.storage-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.storage-path-code {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.value-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.detail-descriptions :deep(.el-descriptions__label) {
+  width: 130px;
+  background-color: #f8fafc !important;
+  color: #475569;
+  font-weight: 600;
+}
+
 .tasks-container {
   padding: 20px;
 }
@@ -2737,50 +2849,6 @@ onMounted(() => {
 .batch-count-tip .count {
   font-weight: bold;
   color: #7c3aed;
-  font-size: 15px;
-}
-
-.bento-upload :deep(.el-upload-dragger) {
-  padding: 20px 10px;
-  border: 1px dashed #e2e8f0;
-  background-color: #f8fafc;
-}
-
-.bento-upload :deep(.el-upload-dragger:hover) {
-  border-color: #7c3aed;
-}
-
-.bento-upload .el-icon--upload {
-  font-size: 40px;
-  color: #94a3b8;
-  margin-bottom: 8px;
-}
-
-.bento-upload .el-upload__text {
-  font-size: 13px;
-}
-
-.bento-dialog :deep(.el-dialog__body) {
-  padding: 20px;
-  background-color: #f8fafc;
-}
-
-.bento-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: auto auto;
-  gap: 10px;
-}
-
-.bento-item {
-  border: none;
-  border-radius: 16px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.bento-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.1) !important;
 }
 
 .target-card {
@@ -2973,6 +3041,8 @@ onMounted(() => {
 .detail-url-link {
   font-size: 14px;
   word-break: break-all;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .oss-path-info {
@@ -2984,9 +3054,9 @@ onMounted(() => {
 
 .oss-path-info .el-link {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .metadata-section, .error-section {
