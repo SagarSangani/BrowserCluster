@@ -717,11 +717,46 @@
               <el-divider />
 
               <div class="section-title">代理配置</div>
-              <el-form-item label="代理服务器">
-                <el-input v-model="scrapeForm.params.proxy.server" placeholder="http://proxy.example.com:8080" clearable />
+              <el-form-item label="代理池分组">
+                <el-select 
+                  v-model="scrapeForm.params.proxy_pool_group" 
+                  placeholder="不使用代理池" 
+                  clearable 
+                  filterable
+                  allow-create
+                  style="width: 100%"
+                  @change="val => val && (scrapeForm.params.proxy.server = '')"
+                >
+                  <el-option 
+                    v-for="group in proxyGroups" 
+                    :key="group.name || group" 
+                    :label="group.name ? `${group.name} (${group.active}/${group.total})` : group" 
+                    :value="group.name || group" 
+                  />
+                </el-select>
+                <div class="input-tip">选择代理池分组，抓取时将自动从该组中选择随机代理。使用代理池时，手动代理设置将失效。</div>
+                <el-alert
+                  v-if="scrapeForm.params.engine === 'drissionpage' && scrapeForm.params.proxy_pool_group"
+                  title="引擎限制"
+                  type="warning"
+                  description="DrissionPage 引擎目前仅支持无账密代理。请确保所选代理池分组中不包含需要账密认证的代理，否则可能会导致抓取失败。"
+                  show-icon
+                  :closable="false"
+                  style="margin-top: 10px;"
+                />
+              </el-form-item>
+
+              <el-form-item label="手动代理服务器">
+                <el-input 
+                  v-model="scrapeForm.params.proxy.server" 
+                  placeholder="http://proxy.example.com:8080" 
+                  clearable 
+                  :disabled="!!scrapeForm.params.proxy_pool_group"
+                />
+                <div class="input-tip" v-if="scrapeForm.params.proxy_pool_group">使用代理池时无法手动配置代理</div>
               </el-form-item>
               
-              <template v-if="scrapeForm.params.proxy.server">
+              <template v-if="!scrapeForm.params.proxy_pool_group && scrapeForm.params.proxy.server">
                 <el-row :gutter="20" v-if="scrapeForm.params.engine !== 'drissionpage'">
                   <el-col :span="12">
                     <el-form-item label="用户名">
@@ -1055,7 +1090,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Picture, WarningFilled, DeleteFilled, Delete, Setting, Connection, Monitor, Timer, Search, CopyDocument, View, VideoPlay, Link, Lock, Promotion, QuestionFilled, Cpu, Right, Document, UploadFilled, MagicStick, Warning, ArrowDown } from '@element-plus/icons-vue'
-import { getTasks, deleteTask as deleteTaskApi, getTask, scrapeAsync, retryTask, deleteTasksBatch, scrapeBatch, getRulesByDomain } from '../api'
+import { getTasks, deleteTask as deleteTaskApi, getTask, scrapeAsync, retryTask, deleteTasksBatch, scrapeBatch, getRulesByDomain, getProxyStats } from '../api'
 import { watch } from 'vue'
 import dayjs from 'dayjs'
 
@@ -1066,6 +1101,16 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const activeTab = ref('info')
+const proxyGroups = ref([])
+
+const loadProxyGroups = async () => {
+  try {
+    const stats = await getProxyStats()
+    proxyGroups.value = stats.groups_detail || []
+  } catch (error) {
+    console.error('Failed to load proxy groups:', error)
+  }
+}
 
 const filterForm = ref({
   status: '',
@@ -1535,6 +1580,7 @@ const fillFormFromTask = (row) => {
   // 确保所有必要的参数结构都存在，并从原任务中复制
   scrapeForm.value.params = {
     engine: params.engine || 'playwright',
+    proxy_pool_group: params.proxy_pool_group || null,
     wait_for: params.wait_for || 'networkidle',
     wait_time: params.wait_time || 3000,
     timeout: params.timeout || 30000,
@@ -1693,6 +1739,13 @@ const submitTask = async () => {
       if (!data.params.user_agent) data.params.user_agent = null
       if (!data.params.selector) data.params.selector = null
       
+      // 处理代理池分组
+      if (data.params.proxy_pool_group) {
+        data.params.proxy = null
+      } else {
+        data.params.proxy_pool_group = null
+      }
+
       // 处理解析配置
       if (data.params.parser === 'llm') {
         data.params.parser_config = { fields: selectedLlmFields.value }
@@ -1802,6 +1855,7 @@ const resetForm = () => {
     url: '',
     params: {
       engine: 'playwright',
+      proxy_pool_group: null,
       wait_for: 'networkidle',
       wait_time: 3000,
       timeout: 30000,
@@ -1882,6 +1936,7 @@ const formatJSON = (content) => {
 
 onMounted(() => {
   loadTasks()
+  loadProxyGroups()
 })
 </script>
 

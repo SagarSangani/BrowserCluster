@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     oss_bucket_name: str = Field(default="", description="OSS Bucket 名称")
     oss_bucket_domain: str = Field(default="", description="OSS 自定义域名或默认域名 (用于生成访问 URL)")
 
+    # 代理池配置
+    proxy_enable_check: bool = True  # 是否启用代理检测
+    proxy_redis_db: int = 6  # 代理池使用的 Redis 数据库索引
+    proxy_redis_key_prefix: str = "proxy_pool"  # 代理池 Redis Key 前缀
+    proxy_check_url: str = "https://myip.ipip.net/"  # 代理检测 URL
+    proxy_check_interval: int = 300  # 代理检测间隔（秒）
+    proxy_check_timeout: float = 10.0  # 代理检测超时（秒）
+    proxy_fail_threshold: int = 3  # 代理失效阈值（连续失败次数）
+
     # 日志配置
     log_level: str = "INFO"  # 日志级别
     log_file: str = "logs/app.log"  # 日志文件路径

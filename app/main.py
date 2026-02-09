@@ -23,13 +23,14 @@ if sys.platform == 'win32':
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-from app.api import scrape, tasks, stats, admin, nodes, auth, users, rules, schedules
+from app.api import scrape, tasks, stats, admin, nodes, auth, users, rules, schedules, proxy
 from app.db.mongo import mongo
 from app.db.redis import redis_client
 from app.core.config import settings
 from app.core.logger import setup_logging
 from app.services.node_manager import node_manager
 from app.services.scheduler_service import scheduler_service
+from app.services.proxy_service import proxy_service
 
 # 初始化日志
 setup_logging()
@@ -100,6 +101,7 @@ app.include_router(admin.router)
 app.include_router(nodes.router)
 app.include_router(rules.router)
 app.include_router(schedules.router)
+app.include_router(proxy.router)
 
 
 @app.on_event("startup")
@@ -117,6 +119,9 @@ async def startup_event():
     
     # 自动启动离线但状态为 running 的节点
     await node_manager.auto_start_nodes()
+    
+    # 注册代理配置变更回调，用于动态更新定时任务
+    proxy_service.register_config_callback(scheduler_service.refresh_system_jobs)
     
     # 启动定时任务调度器
     scheduler_service.start()

@@ -99,8 +99,8 @@ export const deleteTask = async (taskId) => {
 }
 
 // Rules API
-export const getRules = async () => {
-  const response = await api.get('/rules/')
+export const getRules = async (params = {}) => {
+  const response = await api.get('/rules/', { params })
   return response.data
 }
 
@@ -197,6 +197,72 @@ export const createConfig = async (data) => {
 
 export const updateConfig = async (key, data) => {
   const response = await api.put(`/configs/${key}`, data)
+  return response.data
+}
+
+// Proxy API
+export const getProxies = async (params) => {
+  const response = await api.get('/proxy/', { params })
+  return response.data
+}
+
+export const getProxyStats = async () => {
+  const response = await api.get('/proxy/stats')
+  return response.data
+}
+
+export const createProxy = async (data) => {
+  const response = await api.post('/proxy/', data)
+  return response.data
+}
+
+export const updateProxy = async (proxyId, data) => {
+  const response = await api.put(`/proxy/${proxyId}`, data)
+  return response.data
+}
+
+export const deleteProxy = async (proxyId) => {
+  const response = await api.delete(`/proxy/${proxyId}`)
+  return response.data
+}
+
+export const batchDeleteProxies = async (proxyIds) => {
+  const response = await api.post('/proxy/batch-delete', proxyIds)
+  return response.data
+}
+
+export const importProxies = async (data) => {
+  const response = await api.post('/proxy/import', data)
+  return response.data
+}
+
+export const checkAllProxies = async () => {
+  const response = await api.post('/proxy/check-all')
+  return response.data
+}
+
+export const checkProxy = async (proxyId) => {
+  const response = await api.post(`/proxy/${proxyId}/check`)
+  return response.data
+}
+
+export const exportProxies = async () => {
+  const response = await api.get('/proxy/export-all')
+  return response.data
+}
+
+export const getRandomProxy = async (group = 'default') => {
+  const response = await api.get('/proxy/random', { params: { group } })
+  return response.data
+}
+
+export const getProxyConfig = async () => {
+  const response = await api.get('/proxy/config')
+  return response.data
+}
+
+export const updateProxyConfig = async (data) => {
+  const response = await api.put('/proxy/config', data)
   return response.data
 }
 

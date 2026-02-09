@@ -18,6 +18,7 @@ from playwright_stealth import Stealth
 from app.core.browser import browser_manager
 from app.core.drission_browser import drission_manager
 from app.core.config import settings
+from app.services.proxy_service import proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,23 @@ class Scraper:
             
             # 处理代理配置
             proxy_config = params.get("proxy")
+            proxy_pool_group = params.get("proxy_pool_group")
+            pool_proxy_id = None
+            
+            # 如果配置了代理池，从池中获取随机代理
+            if not proxy_config and proxy_pool_group:
+                pool_proxy = await proxy_service.get_random_proxy(proxy_pool_group)
+                if pool_proxy:
+                    pool_proxy_id = pool_proxy.id
+                    proxy_config = {
+                        "server": pool_proxy.server,
+                        "username": pool_proxy.username,
+                        "password": pool_proxy.password
+                    }
+                    logger.info(f"Using proxy from pool group '{proxy_pool_group}': {pool_proxy.server}")
+                else:
+                    logger.warning(f"No available proxy in pool group '{proxy_pool_group}', proceeding without proxy")
+
             browser = await browser_manager.get_browser()
 
             # 创建浏览器上下文参数
@@ -263,11 +281,20 @@ class Scraper:
             if intercepted_data:
                 result["intercepted_apis"] = intercepted_data
 
+            # 更新代理统计
+            if pool_proxy_id:
+                await proxy_service.update_stats(pool_proxy_id, success=True)
+
             return result
 
         except Exception as e:
             # 返回失败结果
             load_time = time.time() - start_time
+            
+            # 更新代理统计
+            if pool_proxy_id:
+                await proxy_service.update_stats(pool_proxy_id, success=False)
+
             error_result = {
                 "status": "failed",
                 "error": {
@@ -307,7 +334,28 @@ class Scraper:
         node_id: str
     ) -> Dict[str, Any]:
         """使用 DrissionPage 抓取网页，通过 asyncio.to_thread 运行同步代码"""
-        return await asyncio.to_thread(self._sync_scrape_with_drission, url, params, node_id)
+        # 处理代理池配置
+        proxy_pool_group = params.get("proxy_pool_group")
+        pool_proxy_id = None
+        if not params.get("proxy") and proxy_pool_group:
+            pool_proxy = await proxy_service.get_random_proxy(proxy_pool_group)
+            if pool_proxy:
+                pool_proxy_id = pool_proxy.id
+                params["proxy"] = {
+                    "server": pool_proxy.server,
+                    "username": pool_proxy.username,
+                    "password": pool_proxy.password
+                }
+                logger.info(f"Using proxy from pool group '{proxy_pool_group}' for DrissionPage: {pool_proxy.server}")
+        
+        result = await asyncio.to_thread(self._sync_scrape_with_drission, url, params, node_id)
+        
+        # 更新代理统计
+        if pool_proxy_id:
+            success = result.get("status") == "success"
+            await proxy_service.update_stats(pool_proxy_id, success=success)
+            
+        return result
 
     def _sync_scrape_with_drission(
         self,

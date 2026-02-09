@@ -47,6 +47,10 @@
                 <el-icon><Connection /></el-icon>
                 <template #title>网站配置</template>
               </el-menu-item>
+              <el-menu-item index="proxies" v-if="isAdmin">
+                <el-icon><Service /></el-icon>
+                <template #title>代理管理</template>
+              </el-menu-item>
 
               <div class="menu-group-title" v-if="!isCollapse">分析与统计</div>
               <el-menu-item index="stats">
@@ -181,7 +185,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { 
-  House, List, DataLine, Monitor, Setting, User,
+  House, List, DataLine, Monitor, Setting, User, Service, Timer, Connection,
   Expand, Fold, CircleCheck, CircleClose, Refresh,
   QuestionFilled, FullScreen
 } from '@element-plus/icons-vue'
@@ -212,6 +216,7 @@ const currentRouteName = computed(() => {
     '/tasks': '任务管理',
     '/task-records': '采集记录',
     '/rules': '网站配置',
+    '/proxies': '代理管理',
     '/schedules': '定时任务',
     '/stats': '数据统计',
     '/nodes': '节点管理',

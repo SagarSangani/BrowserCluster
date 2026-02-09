@@ -5,7 +5,7 @@ Redis 连接管理模块
 """
 import redis
 from app.core.config import settings
-
+from urllib.parse import urlparse, urlunparse
 
 class RedisClient:
     """Redis 单例连接管理类"""
@@ -13,6 +13,7 @@ class RedisClient:
     _instance = None  # 单例实例
     _cache_client = None  # 缓存客户端
     _queue_client = None  # 队列客户端
+    _proxy_client = None  # 代理池客户端
 
     def __new__(cls):
         """实现单例模式"""
@@ -52,6 +53,37 @@ class RedisClient:
             )
         return self._queue_client
 
+    def connect_proxy(self):
+        """
+        连接到代理池 Redis 实例
+        
+        Returns:
+            Redis: Redis 客户端实例
+        """
+        # 基于 redis_url，但修改 db
+
+        url = urlparse(settings.redis_url)
+        # 修改路径为新的 db
+        new_path = f"/{settings.proxy_redis_db}"
+        proxy_url = urlunparse((url.scheme, url.netloc, new_path, url.params, url.query, url.fragment))
+        
+        # 如果已经存在连接，先关闭
+        if self._proxy_client:
+            try:
+                self._proxy_client.close()
+            except:
+                pass
+                
+        self._proxy_client = redis.from_url(
+            proxy_url,
+            decode_responses=True,
+            health_check_interval=30,
+            retry_on_timeout=True
+        )
+        # 记录当前连接的 DB 索引，用于后续检查是否需要重新连接
+        self._current_proxy_db = settings.proxy_redis_db
+        return self._proxy_client
+
     @property
     def cache(self):
         """
@@ -76,6 +108,18 @@ class RedisClient:
             self.connect_queue()
         return self._queue_client
 
+    @property
+    def proxy(self):
+        """
+        获取代理池客户端，如果未连接或配置已更改则自动连接
+
+        Returns:
+            Redis: 代理池客户端
+        """
+        if self._proxy_client is None or getattr(self, '_current_proxy_db', None) != settings.proxy_redis_db:
+            self.connect_proxy()
+        return self._proxy_client
+
     def close_cache(self):
         """关闭缓存连接"""
         if self._cache_client:
@@ -88,10 +132,17 @@ class RedisClient:
             self._queue_client.close()
             self._queue_client = None
 
+    def close_proxy(self):
+        """关闭代理池连接"""
+        if self._proxy_client:
+            self._proxy_client.close()
+            self._proxy_client = None
+
     def close_all(self):
         """关闭所有 Redis 连接"""
         self.close_cache()
         self.close_queue()
+        self.close_proxy()
 
 
 # 全局 Redis 客户端实例

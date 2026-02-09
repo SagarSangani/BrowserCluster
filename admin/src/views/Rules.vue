@@ -10,6 +10,41 @@
       </el-button>
     </div>
 
+    <div class="filter-bar">
+      <el-form :inline="true" :model="filterForm" class="filter-form">
+        <el-form-item label="域名搜索" style="width: 250px;">
+          <el-input 
+            v-model="filterForm.domain" 
+            placeholder="搜索域名..." 
+            clearable 
+            @keyup.enter="handleFilter"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item label="说明搜索" style="width: 250px;">
+          <el-input 
+            v-model="filterForm.description" 
+            placeholder="搜索说明内容..." 
+            clearable 
+            @keyup.enter="handleFilter"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </el-form-item>
+        
+        <el-form-item>
+          <el-button type="primary" @click="handleFilter">查询</el-button>
+          <el-button @click="resetFilter">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+
     <el-card shadow="never" class="table-card">
       <el-table :data="rules" v-loading="loading" style="width: 100%;">
         <el-table-column prop="domain" label="域名" min-width="150" />
@@ -431,11 +466,46 @@
 
               <div class="section-group">
                 <div class="section-title">代理配置</div>
-                <el-form-item label="代理服务器">
-                  <el-input v-model="form.proxy.server" placeholder="http://proxy.example.com:8080" clearable />
+                <el-form-item label="代理池分组">
+                  <el-select 
+                    v-model="form.proxy_pool_group" 
+                    placeholder="不使用代理池" 
+                    clearable 
+                    filterable
+                    allow-create
+                    style="width: 100%"
+                    @change="val => val && (form.proxy.server = '')"
+                  >
+                    <el-option 
+                      v-for="group in proxyGroups" 
+                      :key="group.name || group" 
+                      :label="group.name ? `${group.name} (${group.active}/${group.total})` : group" 
+                      :value="group.name || group" 
+                    />
+                  </el-select>
+                  <div class="input-tip">选择代理池分组，抓取时将自动从该组中选择随机代理。使用代理池时，手动代理设置将失效。</div>
+                  <el-alert
+                    v-if="form.engine === 'drissionpage' && form.proxy_pool_group"
+                    title="引擎限制"
+                    type="warning"
+                    description="DrissionPage 引擎目前仅支持无账密代理。请确保所选代理池分组中不包含需要账密认证的代理，否则可能会导致抓取失败。"
+                    show-icon
+                    :closable="false"
+                    class="mt-2"
+                  />
+                </el-form-item>
+
+                <el-form-item label="手动代理服务器">
+                  <el-input 
+                    v-model="form.proxy.server" 
+                    placeholder="http://proxy.example.com:8080" 
+                    clearable 
+                    :disabled="!!form.proxy_pool_group"
+                  />
+                  <div class="input-tip" v-if="form.proxy_pool_group">使用代理池时无法手动配置代理</div>
                 </el-form-item>
                 
-                <template v-if="form.proxy.server">
+                <template v-if="form.proxy.server && !form.proxy_pool_group">
                   <el-row :gutter="20" v-if="form.engine !== 'drissionpage'">
                     <el-col :span="12">
                       <el-form-item label="用户名">
@@ -523,7 +593,7 @@
 import { ref, onMounted, reactive, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, MagicStick, Connection, Search, Timer, Monitor, Setting, Warning } from '@element-plus/icons-vue'
-import { getRules, createRule, updateRule, deleteRule } from '@/api'
+import { getRules, createRule, updateRule, deleteRule, getProxyStats } from '@/api'
 
 const rules = ref([])
 const loading = ref(false)
@@ -532,6 +602,22 @@ const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
 const activeTab = ref('basic')
+const proxyGroups = ref(['default'])
+
+const filterForm = reactive({
+  domain: '',
+  description: ''
+})
+
+const handleFilter = () => {
+  fetchRules()
+}
+
+const resetFilter = () => {
+  filterForm.domain = ''
+  filterForm.description = ''
+  fetchRules()
+}
 
 const llmFieldOptions = [
   { label: '标题', value: 'title' },
@@ -557,6 +643,7 @@ const form = reactive({
   
   // 浏览器特征配置
   engine: 'playwright',
+  proxy_pool_group: null,
   wait_for: 'networkidle',
   timeout: 30000,
   viewport: { width: 1280, height: 720 },
@@ -589,8 +676,20 @@ const formRules = {
 const fetchRules = async () => {
   loading.value = true
   try {
-    const data = await getRules()
-    rules.value = data
+    const params = {}
+    if (filterForm.domain) params.domain = filterForm.domain
+    if (filterForm.description) params.description = filterForm.description
+    
+    const [rulesData, statsData] = await Promise.all([
+      getRules(params),
+      getProxyStats()
+    ])
+    rules.value = rulesData
+    if (statsData && statsData.groups_detail) {
+      proxyGroups.value = statsData.groups_detail
+    } else if (statsData && statsData.groups) {
+      proxyGroups.value = statsData.groups
+    }
   } catch (error) {
     ElMessage.error('获取规则失败')
   } finally {
@@ -608,6 +707,7 @@ const handleAdd = () => {
     
     // 浏览器特征配置
     engine: 'playwright',
+    proxy_pool_group: null,
     wait_for: 'networkidle',
     timeout: 30000,
     viewport: { width: 1280, height: 720 },
@@ -622,10 +722,10 @@ const handleAdd = () => {
     mongo_collection: '',
     oss_path: '',
     intercept_apis: [],
-    intercept_continue: true,
+    intercept_continue: false,
     proxy: { server: '', username: '', password: '' },
     
-    cache_config: { enabled: true, ttl: 3600 },
+    cache_config: { enabled: false, ttl: 3600 },
     cookies: '',
     description: '',
     is_active: true,
@@ -647,6 +747,7 @@ const handleEdit = (row) => {
   // 确保嵌套对象存在
   if (!rowData.viewport) rowData.viewport = { width: 1280, height: 720 }
   if (!rowData.proxy) rowData.proxy = { server: '', username: '', password: '' }
+  if (rowData.proxy_pool_group === undefined) rowData.proxy_pool_group = null
   if (!rowData.intercept_apis) rowData.intercept_apis = []
   if (rowData.intercept_continue === undefined) rowData.intercept_continue = true
   if (rowData.storage_type === undefined) rowData.storage_type = 'mongo'
@@ -738,11 +839,22 @@ const submitForm = async () => {
       
       submitting.value = true
       try {
+        // 处理代理逻辑：如果使用了代理池，则清空手动代理配置
+        const submitData = JSON.parse(JSON.stringify(form))
+        if (submitData.proxy_pool_group) {
+          submitData.proxy = null
+        } else {
+          submitData.proxy_pool_group = null
+          if (!submitData.proxy || !submitData.proxy.server) {
+            submitData.proxy = null
+          }
+        }
+
         if (isEdit.value) {
-          await updateRule(form.id, form)
+          await updateRule(form.id, submitData)
           ElMessage.success('更新成功')
         } else {
-          await createRule(form)
+          await createRule(submitData)
           ElMessage.success('添加成功')
         }
         dialogVisible.value = false
@@ -827,13 +939,26 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 .subtitle {
-  color: #909399;
-  font-size: 14px;
-  margin: 5px 0 0 0;
+  color: #64748b;
+  margin-top: 4px;
 }
-.table-card {
+
+.filter-bar {
+  background: #fff;
+  padding: 18px 20px;
+  border-radius: 8px;
   margin-bottom: 20px;
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.filter-form :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: 20px;
+}
+
+.table-card {
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 :deep(.el-table__header .el-table__cell) {
@@ -1029,7 +1154,7 @@ onMounted(() => {
 }
 
 .mt-4 {
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .llm-helper-alert {

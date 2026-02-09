@@ -64,7 +64,7 @@
           <div class="step-card">
             <div class="step-icon"><Connection /></div>
             <h4>API Gateway</h4>
-            <p>鉴权、流控与请求预检，集成缓存优先策略。</p>
+            <p>鉴权、流控与请求预检，支持智能代理调度。</p>
           </div>
         </div>
         <div class="arch-connector">
@@ -84,7 +84,7 @@
           <div class="step-card">
             <div class="step-icon"><Cpu /></div>
             <h4>Smart Worker</h4>
-            <p>Playwright 渲染引擎，内置 GNE/XPath/LLM 多模态解析。</p>
+            <p>双浏览器渲染引擎，支持隧道代理与反检测技术。</p>
           </div>
         </div>
         <div class="arch-connector">
@@ -94,7 +94,7 @@
           <div class="step-card">
             <div class="step-icon"><Files /></div>
             <h4>Persistence</h4>
-            <p>MongoDB 结果存储与 Redis 热点数据缓存。</p>
+            <p>MongoDB 结果存储与代理池状态自动维护。</p>
           </div>
         </div>
       </div>
@@ -125,20 +125,6 @@ const features = [
     bg: '#ecf5ff'
   },
   {
-    title: '多模式解析',
-    desc: '集成 GNE、XPath 与 LLM 大模型，支持从规则配置到语义化的结构化数据提取。',
-    icon: MagicStick,
-    color: '#67C23A',
-    bg: '#f0f9eb'
-  },
-  {
-    title: '云端确权存储',
-    desc: '支持 HTML 源码与截图自动同步至OSS，解决海量数据存储与私有访问需求。',
-    icon: Files,
-    color: '#F56C6C',
-    bg: '#fef0f0'
-  },
-  {
     title: '双引擎驱动',
     desc: '支持 Playwright 与 DrissionPage 双引擎，兼顾交互灵活性与极致的反爬避障能力。',
     icon: Cpu,
@@ -146,18 +132,53 @@ const features = [
     bg: '#f2ecff'
   },
   {
-    title: '自动化调度',
-    desc: '内置 Cron 调度引擎，支持定时周期性任务，实现全自动数据监控与采集流水线。',
-    icon: Timer,
+    title: '多模式解析',
+    desc: '集成 GNE、XPath 与 LLM 大模型，支持从规则配置到语义化的结构化数据提取。',
+    icon: MagicStick,
+    color: '#67C23A',
+    bg: '#f0f9eb'
+  },
+  {
+    title: '智能代理池',
+    desc: '内置 SOCKS5/HTTP 代理池，具备一键检测与故障自动熔断机制，保障采集稳定。',
+    icon: Operation,
     color: '#E6A23C',
     bg: '#fdf6ec'
   },
   {
-    title: 'API 实时拦截',
-    desc: '支持在页面渲染过程中深度拦截并提取特定 XHR/Fetch 接口的原始响应数据。',
-    icon: Connection,
+    title: '自动化调度',
+    desc: '内置 Cron 调度引擎，支持定时周期性任务，实现全自动数据监控与采集流水线。',
+    icon: Timer,
+    color: '#F56C6C',
+    bg: '#fef0f0'
+  },
+  {
+    title: '云端确权存储',
+    desc: '支持 HTML 源码与截图自动同步至 OSS，解决海量数据存储与私有访问需求。',
+    icon: Files,
     color: '#409EFF',
     bg: '#ecf5ff'
+  },
+  {
+    title: 'API 实时拦截',
+    desc: '支持在页面渲染过程中深度拦截并提取特定 XHR/Fetch 接口的原始响应数据。',
+    icon: Monitor,
+    color: '#67C23A',
+    bg: '#f0f9eb'
+  },
+  {
+    title: '隐身与反检测',
+    desc: '集成指纹抹除、Stealth 插件及自定义 UserAgent，完美模拟真实浏览器行为。',
+    icon: Lock,
+    color: '#7232dd',
+    bg: '#f2ecff'
+  },
+  {
+    title: '实时状态监控',
+    desc: '多维度统计任务成功率、处理时长及队列状态，实时掌握集群运行动态。',
+    icon: DataAnalysis,
+    color: '#F56C6C',
+    bg: '#fef0f0'
   }
 ]
 

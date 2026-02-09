@@ -13,7 +13,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.db.mongo import mongo
 from app.models.schedule import ScheduleModel, ScheduleStatus, ScheduleType
 from app.services.task_service import task_service
+from app.services.proxy_service import proxy_service
 from app.models.task import ScrapeRequest
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +32,34 @@ class SchedulerService:
             self.scheduler.start()
             self.is_running = True
             logger.info("Scheduler service started")
+            # 添加系统预设任务
+            self._add_system_jobs()
             # 从数据库加载所有激活的任务
             self._load_all_jobs()
+
+    def _add_system_jobs(self):
+        """添加系统预设任务，如代理池检测"""
+        # 如果关闭了代理检测，则不添加或移除已有的任务
+        if not settings.proxy_enable_check:
+            if self.scheduler.get_job("system_proxy_check"):
+                self.scheduler.remove_job("system_proxy_check")
+                logger.info("Removed system job: proxy check (disabled in settings)")
+            return
+
+        interval = settings.proxy_check_interval
+        self.scheduler.add_job(
+            proxy_service.check_all_proxies,
+            trigger=IntervalTrigger(seconds=interval),
+            id="system_proxy_check",
+            name="System Proxy Check",
+            replace_existing=True
+        )
+        logger.info(f"Added/Updated system job: proxy check (every {interval}s)")
+
+    def refresh_system_jobs(self):
+        """刷新系统预设任务"""
+        if self.is_running:
+            self._add_system_jobs()
 
     def stop(self):
         """停止调度器"""

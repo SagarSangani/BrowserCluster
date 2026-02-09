@@ -16,9 +16,19 @@ def format_rule(rule_data: dict) -> dict:
     return rule_data
 
 @router.get("/", response_model=List[ParsingRule])
-async def get_rules(current_user: dict = Depends(get_current_user)):
+async def get_rules(
+    domain: Optional[str] = None,
+    description: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
     """获取所有解析规则"""
-    rules = list(mongo.parsing_rules.find().sort([("priority", -1), ("updated_at", -1)]))
+    query = {}
+    if domain:
+        query["domain"] = {"$regex": domain, "$options": "i"}
+    if description:
+        query["description"] = {"$regex": description, "$options": "i"}
+        
+    rules = list(mongo.parsing_rules.find(query).sort([("priority", -1), ("updated_at", -1)]))
     return [format_rule(r) for r in rules]
 
 @router.get("/domain/{domain}", response_model=List[ParsingRule])

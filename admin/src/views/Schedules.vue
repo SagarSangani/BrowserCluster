@@ -568,11 +568,46 @@
                 <el-divider />
 
                 <div class="section-title">代理配置</div>
-                <el-form-item label="代理服务器" v-if="form.params.proxy">
-                  <el-input v-model="form.params.proxy.server" placeholder="http://proxy.example.com:8080" clearable />
+                <el-form-item label="代理池分组">
+                  <el-select 
+                    v-model="form.params.proxy_pool_group" 
+                    placeholder="不使用代理池" 
+                    clearable 
+                    filterable
+                    allow-create
+                    style="width: 100%"
+                    @change="val => val && (form.params.proxy.server = '')"
+                  >
+                    <el-option 
+                      v-for="group in proxyGroups" 
+                      :key="group.name || group" 
+                      :label="group.name ? `${group.name} (${group.active}/${group.total})` : group" 
+                      :value="group.name || group" 
+                    />
+                  </el-select>
+                  <div class="input-tip">选择代理池分组，抓取时将自动从该组中选择随机代理。使用代理池时，手动代理设置将失效。</div>
+                  <el-alert
+                    v-if="form.params.engine === 'drissionpage' && form.params.proxy_pool_group"
+                    title="引擎限制"
+                    type="warning"
+                    description="DrissionPage 引擎目前仅支持无账密代理。请确保所选代理池分组中不包含需要账密认证的代理，否则可能会导致抓取失败。"
+                    show-icon
+                    :closable="false"
+                    style="margin-top: 10px;"
+                  />
+                </el-form-item>
+
+                <el-form-item label="手动代理服务器">
+                  <el-input 
+                    v-model="form.params.proxy.server" 
+                    placeholder="http://proxy.example.com:8080" 
+                    clearable 
+                    :disabled="!!form.params.proxy_pool_group"
+                  />
+                  <div class="input-tip" v-if="form.params.proxy_pool_group">使用代理池时无法手动配置代理</div>
                 </el-form-item>
                 
-                <template v-if="form.params.proxy && form.params.proxy.server">
+                <template v-if="!form.params.proxy_pool_group && form.params.proxy.server">
                   <el-collapse-transition>
                     <el-row :gutter="20" v-if="form.params.engine !== 'drissionpage'">
                       <el-col :span="12">
@@ -683,7 +718,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Search, Edit, Delete, CaretRight, Link, InfoFilled, Connection, MagicStick, Monitor, Setting, Timer, Warning, QuestionFilled, ArrowDown, CircleCheckFilled, List, View, Document, Promotion } from '@element-plus/icons-vue'
-import { getSchedules, createSchedule, updateSchedule, deleteSchedule, toggleSchedule, runScheduleNow, getRulesByDomain, getTasks, getTask } from '../api'
+import { getSchedules, createSchedule, updateSchedule, deleteSchedule, toggleSchedule, runScheduleNow, getRulesByDomain, getTasks, getTask, getProxyStats } from '../api'
 import dayjs from 'dayjs'
 
 const loading = ref(false)
@@ -693,6 +728,16 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const router = useRouter()
+const proxyGroups = ref([])
+
+const loadProxyGroups = async () => {
+  try {
+    const stats = await getProxyStats()
+    proxyGroups.value = stats.groups_detail || []
+  } catch (error) {
+    console.error('Failed to load proxy groups:', error)
+  }
+}
 
 // --- 1. 基础状态和表单定义 (置于顶部防止初始化错误) ---
 const showDialog = ref(false)
@@ -762,13 +807,13 @@ const form = ref({
   }
 })
 
-const rules = {
+const rules = computed(() => ({
   name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
   url: [{ required: true, message: '请输入目标 URL', trigger: 'blur' }],
-  interval: [{ required: true, message: '请输入执行间隔', trigger: 'blur' }],
-  cron: [{ required: true, message: '请输入 Cron 表达式', trigger: 'blur' }],
-  once_time: [{ required: true, message: '请选择执行时间', trigger: 'change' }]
-}
+  interval: form.value.schedule_type === 'interval' ? [{ required: true, message: '请输入执行间隔', trigger: 'blur' }] : [],
+  cron: form.value.schedule_type === 'cron' ? [{ required: true, message: '请输入 Cron 表达式', trigger: 'blur' }] : [],
+  once_time: form.value.schedule_type === 'once' ? [{ required: true, message: '请选择执行时间', trigger: 'change' }] : []
+}))
 
 const intervalValue = ref(60)
 const intervalUnit = ref('m')
@@ -1034,6 +1079,7 @@ const openCreateDialog = () => {
     priority: 5,
     params: {
       engine: 'playwright',
+      proxy_pool_group: null,
       wait_for: 'networkidle',
       wait_time: 3000,
       timeout: 30000,
@@ -1098,6 +1144,10 @@ const handleEdit = (row) => {
   
   if (!form.value.params.storage_type) {
     form.value.params.storage_type = 'mongo'
+  }
+
+  if (form.value.params.proxy_pool_group === undefined) {
+    form.value.params.proxy_pool_group = null
   }
   
   // 处理间隔回显
@@ -1225,97 +1275,105 @@ const handleEdit = (row) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
   
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        const submitData = JSON.parse(JSON.stringify(form.value))
-        
-        // 根据调度类型清理数据
-        if (submitData.schedule_type === 'interval') {
-          let totalSeconds = intervalValue.value
-          if (intervalUnit.value === 'm') totalSeconds *= 60
-          else if (intervalUnit.value === 'h') totalSeconds *= 3600
-          else if (intervalUnit.value === 'd') totalSeconds *= 86400
-          submitData.interval = totalSeconds
-          submitData.cron = null
-          submitData.once_time = null
-        } else if (submitData.schedule_type === 'cron') {
-          submitData.interval = null
-          submitData.once_time = null
-        } else if (submitData.schedule_type === 'once') {
-          submitData.interval = null
-          submitData.cron = null
-        }
+  try {
+    const valid = await formRef.value.validate()
+    if (!valid) return
+    
+    submitting.value = true
+    const submitData = JSON.parse(JSON.stringify(form.value))
+    
+    // 根据调度类型清理数据
+    if (submitData.schedule_type === 'interval') {
+      let totalSeconds = intervalValue.value
+      if (intervalUnit.value === 'm') totalSeconds *= 60
+      else if (intervalUnit.value === 'h') totalSeconds *= 3600
+      else if (intervalUnit.value === 'd') totalSeconds *= 86400
+      submitData.interval = totalSeconds
+      submitData.cron = null
+      submitData.once_time = null
+    } else if (submitData.schedule_type === 'cron') {
+      submitData.interval = null
+      submitData.once_time = null
+    } else if (submitData.schedule_type === 'once') {
+      submitData.interval = null
+      submitData.cron = null
+    }
 
-        // 处理解析配置
-        if (submitData.params.parser === 'llm') {
-          submitData.params.parser_config = { fields: selectedLlmFields.value }
-        } else if (submitData.params.parser === 'xpath') {
-          const rules = {}
-          xpathRules.value.forEach(r => {
-            if (r.name && r.xpath) rules[r.name] = r.xpath
-          })
-          submitData.params.parser_config = { rules }
-        } else if (submitData.params.parser === 'gne') {
-          const mode = submitData.params.parser_config?.mode || 'detail'
-          const list_xpath = submitData.params.parser_config?.list_xpath || ''
-          
-          if (mode === 'list' && !list_xpath) {
-            ElMessage.warning('GNE 列表模式下，列表项 XPath 为必填项')
-            submitting.value = false
-            return
-          }
-          
-          submitData.params.parser_config = { mode, list_xpath }
-        } else {
-          submitData.params.parser_config = null
-        }
-
-        // 处理代理
-        if (!submitData.params.proxy || !submitData.params.proxy.server) {
-          submitData.params.proxy = null
-        } else {
-          if (!submitData.params.proxy.username) delete submitData.params.proxy.username
-          if (!submitData.params.proxy.password) delete submitData.params.proxy.password
-        }
-
-        // 处理拦截配置
-        if (!submitData.params.intercept_apis || submitData.params.intercept_apis.length === 0) {
-          submitData.params.intercept_apis = null
-        }
-
-        // 处理 Cookies
-        if (submitData.params.cookies) {
-          const cookieVal = submitData.params.cookies.trim()
-          if ((cookieVal.startsWith('[') && cookieVal.endsWith(']')) || 
-              (cookieVal.startsWith('{') && cookieVal.endsWith('}'))) {
-            try {
-              submitData.params.cookies = JSON.parse(cookieVal)
-            } catch (e) {
-              console.warn('Cookies parse failed, using as string')
-            }
-          }
-        } else {
-          submitData.params.cookies = null
-        }
-
-        if (isEdit.value) {
-          await updateSchedule(submitData.schedule_id, submitData)
-          ElMessage.success('更新成功')
-        } else {
-          await createSchedule(submitData)
-          ElMessage.success('创建成功')
-        }
-        showDialog.value = false
-        loadSchedules()
-      } catch (error) {
-        ElMessage.error((isEdit.value ? '更新' : '创建') + '失败: ' + (error.response?.data?.detail || error.message))
-      } finally {
+    // 处理解析配置
+    if (submitData.params.parser === 'llm') {
+      submitData.params.parser_config = { fields: selectedLlmFields.value }
+    } else if (submitData.params.parser === 'xpath') {
+      const rules = {}
+      xpathRules.value.forEach(r => {
+        if (r.name && r.xpath) rules[r.name] = r.xpath
+      })
+      submitData.params.parser_config = { rules }
+    } else if (submitData.params.parser === 'gne') {
+      const mode = submitData.params.parser_config?.mode || 'detail'
+      const list_xpath = submitData.params.parser_config?.list_xpath || ''
+      
+      if (mode === 'list' && !list_xpath) {
+        ElMessage.warning('GNE 列表模式下，列表项 XPath 为必填项')
         submitting.value = false
+        return
+      }
+      
+      submitData.params.parser_config = { mode, list_xpath }
+    } else {
+      submitData.params.parser_config = null
+    }
+
+    // 处理代理
+    if (submitData.params.proxy_pool_group) {
+      submitData.params.proxy = null
+    } else {
+      submitData.params.proxy_pool_group = null
+      if (!submitData.params.proxy || !submitData.params.proxy.server) {
+        submitData.params.proxy = null
+      } else {
+        if (!submitData.params.proxy.username) delete submitData.params.proxy.username
+        if (!submitData.params.proxy.password) delete submitData.params.proxy.password
       }
     }
-  })
+
+    // 处理拦截配置
+    if (!submitData.params.intercept_apis || submitData.params.intercept_apis.length === 0) {
+      submitData.params.intercept_apis = null
+    }
+
+    // 处理 Cookies
+    if (submitData.params.cookies) {
+      const cookieVal = submitData.params.cookies.trim()
+      if ((cookieVal.startsWith('[') && cookieVal.endsWith(']')) || 
+          (cookieVal.startsWith('{') && cookieVal.endsWith('}'))) {
+        try {
+          submitData.params.cookies = JSON.parse(cookieVal)
+        } catch (e) {
+          console.warn('Cookies parse failed, using as string')
+        }
+      }
+    } else {
+      submitData.params.cookies = null
+    }
+
+    if (isEdit.value) {
+      await updateSchedule(submitData.schedule_id, submitData)
+      ElMessage.success('更新成功')
+    } else {
+      await createSchedule(submitData)
+      ElMessage.success('创建成功')
+    }
+    showDialog.value = false
+    loadSchedules()
+  } catch (error) {
+    if (error === false || (typeof error === 'object' && !error.message)) {
+      ElMessage.warning('请检查表单必填项是否填写正确')
+    } else {
+      ElMessage.error((isEdit.value ? '更新' : '创建') + '失败: ' + (error.response?.data?.detail || error.message))
+    }
+  } finally {
+    submitting.value = false
+  }
 }
 
 const confirmDelete = (row) => {
@@ -1435,6 +1493,7 @@ const formatInterval = (seconds) => {
 
 onMounted(() => {
   loadSchedules()
+  loadProxyGroups()
 })
 </script>
 
