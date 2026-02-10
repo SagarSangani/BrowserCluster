@@ -1,5 +1,13 @@
 # Browser Cluster
 
+<p align="center">
+  <img src="admin/public/chat.png" width="200" alt="Author Image">
+</p>
+
+<p align="center">
+  <strong>联系作者，欢迎加入项目交流群~</strong><br>
+</p>
+
 > [!IMPORTANT]
 > **前期项目会有较多 bug，请大家踊跃提 issues，作者看到后第一时间更新！**
 
